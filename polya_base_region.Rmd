@@ -23,7 +23,7 @@ sites <-fread(piled_up_results)
 head(sites)
 ```
 ```{r}
-region_width = 200
+region_width = 100
 
 # Define a start and end around each position
 center_pos <- as.numeric(sites$win_start)
@@ -52,54 +52,20 @@ rna_middle <- vapply(rna_sequences, get_middle, FUN.VALUE = character(1))
 weights <- sites$count_sum
 ggseqlogo(rna_middle, seq_type = 'rna', weights = weights)
 ```
-
 ```{r}
-# Step 1: reverse complement for '-' strand
-sites[, sequence_for_logo := ifelse(
-  strand == "-",
-  as.character(reverseComplement(DNAStringSet(sequences))),
-  sequences
-)]
-# Step 2: Replace T with U
-sites[, rna_sequence := gsub("T", "U", sequence_for_logo)]
-# Step 3: Split into individual bases by position
-seq_split <- sites[, .(rna_sequence, count_sum)][
-  , .(pos = 1:nchar(rna_sequence[[1]]), base = strsplit(rna_sequence, "")[[1]]), 
-  by = .(rna_sequence, count_sum)
-]
-# Step 4: Expand to all positions
-seq_long <- seq_split[, .(pos, base, count_sum)]
-# Step 5: Summarize weighted base counts per position
-base_counts <- seq_long[, .(weighted_count = sum(count_sum)), by = .(pos, base)]
-# Step 6: Normalize to percentages
-base_freqs <- base_counts[, .(base, pct = weighted_count / sum(weighted_count) * 100), by = pos]
-# Step 7: Plot
-ggplot(base_freqs, aes(x = pos, y = pct, color = base)) +
-  geom_line(size = 0.5) +
-  labs(x = "Position in sequence", y = "Base frequency (%)") +
-  theme_minimal()
-```
-```{r}
-# # Step 1: reverse complement for '-' strand
-# sites[, sequence_for_logo := ifelse(
-#   strand == "-",
-#   as.character(reverseComplement(DNAStringSet(sequences))),
-#   sequences
-# )]
-# Step 2: Replace T with U
-sites[, rna_sequence := gsub("T", "U", sequence_for_logo)]
-# Step 3: Split each sequence into one row per base with its position
+# Replace T with U
+sites[, rna_sequence := gsub("T", "U", rna_sequences)]
+# Split each sequence into one row per base with its position
 seq_split <- sites[, .(rna_sequence)][
   , .(pos = seq_len(nchar(rna_sequence[[1]])), 
       base = strsplit(rna_sequence, "")[[1]]), 
   by = rna_sequence
 ]
-# Step 4: Count base occurrences at each position (unweighted)
+# Count base occurrences at each position and normalise
 base_counts <- seq_split[, .N, by = .(pos, base)]
-# Step 5: Normalize to percentages
 base_freqs <- base_counts[, .(base, pct = N / sum(N) * 100), by = pos]
-# Step 6: Plot
-ggplot(base_freqs, aes(x = pos, y = pct, color = base)) +
+# Plot
+ggplot(base_freqs, aes(x = pos-region_width, y = pct, color = base)) +
   geom_line(size = 0.5) +
   labs(x = "Position in sequence", y = "Base frequency (%)") +
   theme_minimal()
