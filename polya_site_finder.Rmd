@@ -5,6 +5,8 @@ Load libraries required to mix R and bash
 ```{r}
 library(glue)
 library(data.table)
+library(GenomicFeatures)
+library(GenomicRanges)
 ```
 
 Set the input bam files and output bed
@@ -12,16 +14,22 @@ Set the input bam files and output bed
 bam_file <- "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data/col0_1.genome.bam"
 bed_file <- "bed/genome_polya_sites.bed"
 polya_bed_file <- "bed/polya_site_counts.bed"
+results_file <- "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/apa_results/vir1_vs_col0.apa_results.bed"
+results_header <- c("chrom","start","end","gene_id","score","strand","wass_dist","wass_dir","wass_pval","wass_fdr","nreads_cntrl","nreads_treat")
+region_file <- "bed/regions_for_samtools.bed"
 ```
-
-Subset region
 ```{r}
-region <- "1:100000-200000"
+apa_results <- read.delim(results_file)
+colnames(apa_results) <- results_header
+#filter by significance
+apa_results <- apa_results[apa_results$wass_fdr < 0.01,]
+regions <- paste0(apa_results$chrom, "\t", apa_results$start -250, "\t", apa_results$end +250)
+writeLines(regions, region_file)
 ```
 
 Use samtools to extract the 3' ends to bed file
 ```{R}
-cmd <- glue('samtools view -F 0x4 "{bam_file}" "{region}" | \\
+cmd <- glue('samtools view -F 0x4 -L "{region_file}" "{bam_file}" | \\
 gawk \'BEGIN{{OFS="\\t"}} {{
     read_name = $1;
     flag = $2;
@@ -60,8 +68,10 @@ Use a 5bp sliding window to aggregate the a tail ends
 #Set the sorting order
 setorder(polya_counts, chrom, strand, start)
 
+test_subset <- polya_counts[1:500]
+
 # Sliding window function
-slide_window_counts <- function(df, window_size = 5, step = 1) {
+slide_window_counts <- function(df, window_size = 5, step = 5) {
   starts <- seq(min(df$start), max(df$start), by = step)
   result <- data.table()
   for (s in starts) {
@@ -75,8 +85,41 @@ slide_window_counts <- function(df, window_size = 5, step = 1) {
 }
 
 # Apply by chrom and strand
-sliding_results <- polya_counts[, slide_window_counts(.SD), by = .(chrom, strand)]
+sliding_results <- test_subset[, slide_window_counts(.SD), by = .(chrom, strand)]
 sliding_results <- sliding_results[sliding_results$count_sum>5,]
 head(sliding_results)
 ```
+```{r}
+library(data.table)
 
+# Ensure data is sorted
+setorder(polya_counts, chrom, strand, start)
+
+# Efficient window count function
+slide_window_dt <- function(dt, window_size = 1, step = 1) {
+  # Determine window start and end positions for each chrom + strand
+  dt[, {
+    min_start <- min(start)
+    max_start <- max(start)
+    bins <- seq(min_start, max_start, by = step)
+    
+    # Assign each row to a bin
+    bin_id <- findInterval(start, bins)
+
+    # Compute sum within each bin
+    out <- .SD[, .(win_start = bins[unique(bin_id)],
+                   win_end   = bins[unique(bin_id)] + window_size,
+                   count_sum = sum(read_count)), by = bin_id]
+
+    out
+  }, by = .(chrom, strand)]
+}
+```
+
+
+```{r}
+sliding_results <- slide_window_dt(polya_counts, window_size = 1, step = 1)
+sliding_results <- sliding_results[count_sum > 5]
+head(sliding_results)
+plot(sliding_results$count_sum, pch = ".")
+```

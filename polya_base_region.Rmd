@@ -1,0 +1,107 @@
+---
+title: "Base distribution in the polya region"
+---
+```{r}
+library(data.table)
+library(GenomicFeatures)
+library(GenomicRanges)
+library(Biostrings)
+library(Rsamtools)
+library(ggseqlogo)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+```
+Get the genome
+```{r}
+fasta_path <- "~/Documents/Ref_data/TAIR10_chr_all.fas"
+```
+
+```{r}
+piled_up_results <- "bed/piled_results.tsv"
+sites <-fread(piled_up_results)
+head(sites)
+```
+```{r}
+region_width = 200
+
+# Define a start and end around each position
+center_pos <- as.numeric(sites$win_start)
+
+# Make GRanges object centered at position with ±5 bp
+flanked_gr <- GRanges(
+  seqnames = paste0("Chr", sites$chrom),
+  ranges = IRanges(start = center_pos - region_width, end = center_pos + region_width),
+  strand = sites$strand
+)
+# Load genome and extract sequences
+At.genome <- FaFile(fasta_path)
+sequences <- getSeq(At.genome, flanked_gr)
+sites$sequences <- as.character(sequences)
+head(sites)
+```
+```{r}
+rna_sequences <- gsub("T", "U", sites$sequences)
+get_middle <- function(seq) {
+  n <- nchar(seq)
+  mid <- ceiling(n / 2)
+  substr(seq, mid - 25, mid + 10)
+}
+# Apply to all sequences
+rna_middle <- vapply(rna_sequences, get_middle, FUN.VALUE = character(1))
+weights <- sites$count_sum
+ggseqlogo(rna_middle, seq_type = 'rna', weights = weights)
+```
+
+```{r}
+# Step 1: reverse complement for '-' strand
+sites[, sequence_for_logo := ifelse(
+  strand == "-",
+  as.character(reverseComplement(DNAStringSet(sequences))),
+  sequences
+)]
+# Step 2: Replace T with U
+sites[, rna_sequence := gsub("T", "U", sequence_for_logo)]
+# Step 3: Split into individual bases by position
+seq_split <- sites[, .(rna_sequence, count_sum)][
+  , .(pos = 1:nchar(rna_sequence[[1]]), base = strsplit(rna_sequence, "")[[1]]), 
+  by = .(rna_sequence, count_sum)
+]
+# Step 4: Expand to all positions
+seq_long <- seq_split[, .(pos, base, count_sum)]
+# Step 5: Summarize weighted base counts per position
+base_counts <- seq_long[, .(weighted_count = sum(count_sum)), by = .(pos, base)]
+# Step 6: Normalize to percentages
+base_freqs <- base_counts[, .(base, pct = weighted_count / sum(weighted_count) * 100), by = pos]
+# Step 7: Plot
+ggplot(base_freqs, aes(x = pos, y = pct, color = base)) +
+  geom_line(size = 0.5) +
+  labs(x = "Position in sequence", y = "Base frequency (%)") +
+  theme_minimal()
+```
+```{r}
+# # Step 1: reverse complement for '-' strand
+# sites[, sequence_for_logo := ifelse(
+#   strand == "-",
+#   as.character(reverseComplement(DNAStringSet(sequences))),
+#   sequences
+# )]
+# Step 2: Replace T with U
+sites[, rna_sequence := gsub("T", "U", sequence_for_logo)]
+# Step 3: Split each sequence into one row per base with its position
+seq_split <- sites[, .(rna_sequence)][
+  , .(pos = seq_len(nchar(rna_sequence[[1]])), 
+      base = strsplit(rna_sequence, "")[[1]]), 
+  by = rna_sequence
+]
+# Step 4: Count base occurrences at each position (unweighted)
+base_counts <- seq_split[, .N, by = .(pos, base)]
+# Step 5: Normalize to percentages
+base_freqs <- base_counts[, .(base, pct = N / sum(N) * 100), by = pos]
+# Step 6: Plot
+ggplot(base_freqs, aes(x = pos, y = pct, color = base)) +
+  geom_line(size = 0.5) +
+  labs(x = "Position in sequence", y = "Base frequency (%)") +
+  theme_minimal()
+```
+
