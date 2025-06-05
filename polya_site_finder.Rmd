@@ -13,9 +13,10 @@ bam_file <- "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipel
 bed_file <- "bed/genome_polya_sites.bed"
 polya_bed_file <- "bed/polya_site_counts.bed"
 ```
+
 Subset region
 ```{r}
-region <- "1:100000-500000"
+region <- "1:100000-200000"
 ```
 
 Use samtools to extract the 3' ends to bed file
@@ -75,6 +76,7 @@ slide_window_counts <- function(df, window_size = 5, step = 1) {
 
 # Apply by chrom and strand
 sliding_results <- polya_counts[, slide_window_counts(.SD), by = .(chrom, strand)]
+sliding_results <- sliding_results[sliding_results$count_sum>5,]
 head(sliding_results)
 ```
 
