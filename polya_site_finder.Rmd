@@ -1,18 +1,80 @@
 ---
 title: "PolyA_site_finder"
 ---
-
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
-
+Load libraries required to mix R and bash
 ```{r}
-plot(cars)
+library(glue)
+library(data.table)
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+Set the input bam files and output bed
+```{r}
+bam_file <- "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data/col0_1.genome.bam"
+bed_file <- "bed/genome_polya_sites.bed"
+polya_bed_file <- "bed/polya_site_counts.bed"
+```
+Subset region
+```{r}
+region <- "1:100000-500000"
+```
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+Use samtools to extract the 3' ends to bed file
+```{R}
+cmd <- glue('samtools view -F 0x4 "{bam_file}" "{region}" | \\
+gawk \'BEGIN{{OFS="\\t"}} {{
+    read_name = $1;
+    flag = $2;
+    chrom = $3;
+    start = $4;
+    cigar = $6;
+    strand = ((and(flag, 16)) ? "-" : "+");
+    len = 0;
+    while (match(cigar, /[0-9]+[MDN=X]/)) {{
+        len += substr(cigar, RSTART, RLENGTH - 1);
+        cigar = substr(cigar, RSTART + RLENGTH);
+    }}
+    end_pos = start + len - 1;
+    polya_site = (strand == "+" ? end_pos : start);
+    print chrom, polya_site, polya_site + 1, read_name, 0, strand;
+}}\' > "{bed_file}"')
+system(cmd)
+```
+```{r}
+# Build the shell command
+sort_groupby_cmd <- glue::glue('sort -k1,1 -k2,2n "{bed_file}" | \\
+  bedtools groupby -g 1,2,3,6 -c 4 -o count > "{polya_bed_file}"')
 
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+# Run it
+system(sort_groupby_cmd)
+
+# Read the result back into R
+library(data.table)
+polya_counts <- fread(polya_bed_file, col.names = c("chrom", "start", "end", "strand", "read_count"))
+
+# Display first few rows
+head(polya_counts)
+```
+Use a 5bp sliding window to aggregate the a tail ends
+```{r}
+#Set the sorting order
+setorder(polya_counts, chrom, strand, start)
+
+# Sliding window function
+slide_window_counts <- function(df, window_size = 5, step = 1) {
+  starts <- seq(min(df$start), max(df$start), by = step)
+  result <- data.table()
+  for (s in starts) {
+    e <- s + window_size
+    count_sum <- df[start >= s & start < e, sum(read_count)]
+    if (!is.na(count_sum)) {
+      result <- rbind(result, data.table(win_start = s, win_end = e, count_sum = count_sum))
+    }
+  }
+  return(result)
+}
+
+# Apply by chrom and strand
+sliding_results <- polya_counts[, slide_window_counts(.SD), by = .(chrom, strand)]
+head(sliding_results)
+```
 
