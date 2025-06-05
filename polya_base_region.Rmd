@@ -45,12 +45,13 @@ rna_sequences <- gsub("T", "U", sites$sequences)
 get_middle <- function(seq) {
   n <- nchar(seq)
   mid <- ceiling(n / 2)
-  substr(seq, mid - 25, mid + 10)
+  substr(seq, mid - 20, mid + 10)
 }
 # Apply to all sequences
 rna_middle <- vapply(rna_sequences, get_middle, FUN.VALUE = character(1))
 weights <- sites$count_sum
 ggseqlogo(rna_middle, seq_type = 'rna', weights = weights)
+ggseqlogo(rna_middle, seq_type = 'rna', weights = weights,  method = 'prob')
 ```
 ```{r}
 # Replace T with U

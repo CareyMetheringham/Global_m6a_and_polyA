@@ -17,6 +17,7 @@ polya_bed_file <- "bed/polya_site_counts.bed"
 results_file <- "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/apa_results/vir1_vs_col0.apa_results.bed"
 results_header <- c("chrom","start","end","gene_id","score","strand","wass_dist","wass_dir","wass_pval","wass_fdr","nreads_cntrl","nreads_treat")
 region_file <- "bed/regions_for_samtools.bed"
+piled_up_results <- "bed/piled_results.tsv"
 ```
 ```{r}
 apa_results <- read.delim(results_file)
@@ -122,4 +123,5 @@ sliding_results <- slide_window_dt(polya_counts, window_size = 1, step = 1)
 sliding_results <- sliding_results[count_sum > 5]
 head(sliding_results)
 plot(sliding_results$count_sum, pch = ".")
+write.table(sliding_results, file = piled_up_results, sep = "\t", row.names = F, quote = F)
 ```
