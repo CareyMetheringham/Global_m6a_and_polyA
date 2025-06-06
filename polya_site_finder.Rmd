@@ -5,13 +5,16 @@ Load libraries required to mix R and bash
 ```{r}
 library(glue)
 library(data.table)
-library(GenomicFeatures)
-library(GenomicRanges)
+library(purrr)
+library(fs)
+library(stringr)
 ```
 
 Set the input bam files and output bed
 ```{r}
 bam_file <- "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data/col0_1.genome.bam"
+bam_list <- dir_ls("/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data", glob = "*.bam")  %>%
+  str_subset("col0")
 bed_file <- "bed/genome_polya_sites.bed"
 polya_bed_file <- "bed/polya_site_counts.bed"
 results_file <- "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/apa_results/vir1_vs_col0.apa_results.bed"
@@ -53,12 +56,8 @@ system(cmd)
 # Build the shell command
 sort_groupby_cmd <- glue::glue('sort -k1,1 -k2,2n "{bed_file}" | \\
   bedtools groupby -g 1,2,3,6 -c 4 -o count > "{polya_bed_file}"')
-
-# Run it
 system(sort_groupby_cmd)
 
-# Read the result back into R
-library(data.table)
 polya_counts <- fread(polya_bed_file, col.names = c("chrom", "start", "end", "strand", "read_count"))
 
 # Display first few rows

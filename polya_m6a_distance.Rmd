@@ -1,0 +1,9 @@
+---
+title: "M6a and poly(A) site"
+---
+
+Get the genomic m6A positions
+
+Pull in the major poly(A) sites
+
+Measure distance and direction from the poly(A) site to the nearest m6a site
