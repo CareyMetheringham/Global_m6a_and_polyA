@@ -8,12 +8,13 @@ library(data.table)
 library(purrr)
 library(fs)
 library(stringr)
+library(parallel)
 ```
 
 Set the input bam files and output bed
 ```{r}
 bam_file <- "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data/col0_1.genome.bam"
-bam_list <- dir_ls("/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data", glob = "*.bam")  %>%
+bam_list <- dir_ls("/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data", glob = "*genome.filtered.bam")  %>%
   str_subset("col0")
 bed_file <- "bed/genome_polya_sites.bed"
 polya_bed_file <- "bed/polya_site_counts.bed"
@@ -22,11 +23,12 @@ results_header <- c("chrom","start","end","gene_id","score","strand","wass_dist"
 region_file <- "bed/regions_for_samtools.bed"
 piled_up_results <- "bed/piled_results.tsv"
 ```
+Define the transcripts that have a change in poly(A) site usage
 ```{r}
 apa_results <- read.delim(results_file)
 colnames(apa_results) <- results_header
 #filter by significance
-apa_results <- apa_results[apa_results$wass_fdr < 0.01,]
+apa_results <- apa_results[apa_results$wass_fdr < 0.001,]
 regions <- paste0(apa_results$chrom, "\t", apa_results$start -250, "\t", apa_results$end +250)
 writeLines(regions, region_file)
 ```
@@ -63,6 +65,21 @@ polya_counts <- fread(polya_bed_file, col.names = c("chrom", "start", "end", "st
 # Display first few rows
 head(polya_counts)
 ```
+
+
+
+```{r}
+# Group and count
+#polya_counts <- all_bed[, .(count = .N), by = .(chrom, start, end, strand)]
+
+# Save to BED
+fwrite(polya_counts, polya_bed_file, sep = "\t", col.names = FALSE)
+
+#polya_counts <- fread(polya_bed_file, col.names = c("chrom", "start", "end", "strand", "read_count"))
+head(polya_counts)
+```
+
+
 Use a 5bp sliding window to aggregate the a tail ends
 ```{r}
 #Set the sorting order
