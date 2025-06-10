@@ -1,0 +1,391 @@
+---
+title: "Analysis of the Core, Shell & Cloud sites in m6anet results"
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(data.table)
+library(clusterProfiler)
+library(org.At.tair.db)
+library(readr)
+library(GenomicFeatures)
+library(purrr)
+library(reshape2)
+library(Biostrings)
+```
+
+Load genome and annotation
+```{r}
+At.genome <- Rsamtools::FaFile("~/Documents/Ref_data/TAIR10_chr_all.fas")
+# Load TxDb
+txdb <- makeTxDbFromGFF("../../Ref_data/Araport11_GFF3_genes_transposons.201606.no_chr.gtf")
+```
+```{r}
+#Define the the location of the input files
+#directory <- "/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/m6Anet/data/m6anet"
+directory <- "/Users/CMetheringham001/Documents/Reader_Writer_Paper/GlobalM6A/m6anet_results"
+#Probability threshold for inclusion of site
+threshold = 0.9
+#List of col0 m6A files
+col0_files <- c(
+    "col0_fpa_2",
+    "col0_fpa_4",
+    "col0_1_1",
+    "col0_1_2",
+    "col0_1_3",
+    "col0_1_4",
+    #"col0_3_1",
+    #"col0_3_2",
+    #"col0_3_3",
+    #"col0_3_4",
+    "col0_1",
+    "col0_2",
+    "col0_4",
+    #"col0_8_1", - Excluded for having less than 1 million reads
+    #"col0_8_2", - Excluded for having less than 1 million reads
+    "col0_8_4",
+    "col0_2024_1",
+    "col0_2024_2",
+    "col0_2024_3"
+)
+```
+Get the files and filter for sites which pass the probability threshold
+```{r}
+m6a_sites_pass_list <- list()
+for (i in 1:length(col0_files)){
+    file_name <- paste(directory,col0_files[i],"data.site_proba.csv", sep ="/")
+    m6a_sites <- read.csv(file_name)
+    m6a_sites_pass_list[[i]] <- m6a_sites[which(m6a_sites$probability_modified > threshold & m6a_sites$mod_ratio >= 0.5) ,]
+}
+```
+
+
+```{r}
+m6a_sites_unfiltered_list <- list()
+for (i in 1:length(col0_files)){
+    file_name <- paste(directory,col0_files[i],"data.site_proba.csv", sep ="/")
+    m6a_sites <- read.csv(file_name)
+    m6a_sites_unfiltered_list[[i]] <- m6a_sites
+}
+```
+Define the size of the sets
+```{r}
+core <- length(m6a_sites_pass_list)
+shell <- length(m6a_sites_pass_list) -1
+```
+
+Get a list of all possible sites
+```{r}
+# Collect all unique site combinations from all data frames
+all_sites <- bind_rows(lapply(m6a_sites_pass_list, function(df) {
+  df %>% mutate(across(c("transcript_id", "transcript_position", "kmer"), as.character)) %>%
+    dplyr::select(transcript_id, transcript_position, kmer)
+})) %>% distinct()
+```
+
+
+```{r}
+# Count in how many data frames each row appears
+combo_counts <- sapply(seq_len(nrow(all_sites)), function(i) {
+  combo <- all_sites[i, , drop = FALSE]
+  sum(sapply(m6a_sites_pass_list, function(df) {
+    df_subset <- df[, c("transcript_id", "transcript_position", "kmer")]
+    # Make sure all are same type (e.g., character) for exact matching
+    all_names <- names(combo)
+    df_subset <- df_subset %>% mutate(across(everything(), as.character))
+    combo <- combo %>% mutate(across(everything(), as.character))
+    nrow(semi_join(df_subset, combo, by = all_names)) > 0
+  }))
+})
+col0_result <- cbind(all_sites, count = combo_counts)
+table(col0_result$count)
+```
+Load in the mutant data
+```{r}
+mutant_files <- c(
+    "vir1_1_1",
+    "vir1_1_2",
+    "vir1_1_3",
+    "vir1_1_4",
+    "vir1_8_1",
+    "vir1_8_2",
+    "vir1_8_3",
+    "vir1_8_4",
+    "fip37_1",
+    "fip37_2",
+    "fip37_4",
+    "fip37_2024_1",
+    "fip37_2024_2",
+    "flacc_1",
+    "flacc_2",
+    "flacc_3",
+    "flacc_4"
+)
+```
+Get the files and filter for sites which pass the probability threshold
+```{r}
+mutant_sites_pass_list <- list()
+for (i in 1:length(mutant_files)){
+    file_name <- paste(directory,mutant_files[i],"data.site_proba.csv", sep ="/")
+    mutant_sites <- read.csv(file_name)
+    mutant_sites_pass_list[[i]] <- mutant_sites[which(mutant_sites$probability_modified > threshold & mutant_sites$mod_ratio >= 0.5) ,]
+}
+```
+Get the unfiltered file
+```{r}
+mutant_sites_unfiltered_list <- list()
+for (i in 1:length(mutant_files)){
+    file_name <- paste(directory,mutant_files[i],"data.site_proba.csv", sep ="/")
+    mutant_sites <- read.csv(file_name)
+    mutant_sites_unfiltered_list[[i]] <- m6a_sites
+}
+```
+Annotate positions_mapped_annotated with the occurance in mutants
+```{r}
+# Collect all unique site combinations from all data frames
+all_mutant_sites <- bind_rows(lapply(mutant_sites_pass_list, function(df) {
+  df %>% mutate(across(c("transcript_id", "transcript_position", "kmer"), as.character)) %>%
+    dplyr::select(transcript_id, transcript_position, kmer)
+})) %>% distinct()
+```
+
+```{r}
+# Count in how many data frames each row appears
+mutant_combo_counts <- sapply(seq_len(nrow(all_mutant_sites)), function(i) {
+  combo <- all_mutant_sites[i, , drop = FALSE]
+  sum(sapply(mutant_sites_pass_list, function(df) {
+    df_subset <- df[, c("transcript_id", "transcript_position", "kmer")]
+    # Make sure all are same type (e.g., character) for exact matching
+    all_names <- names(combo)
+    df_subset <- df_subset %>% mutate(across(everything(), as.character))
+    combo <- combo %>% mutate(across(everything(), as.character))
+    nrow(semi_join(df_subset, combo, by = all_names)) > 0
+  }))
+})
+mutant_result <- cbind(all_mutant_sites, count = mutant_combo_counts)
+table(mutant_result$count)
+```
+Plot for sites found in mutants 
+```{r}
+mutant_set_data <- as.data.table(table(mutant_result$count))
+colnames(mutant_set_data) <- c("category", "count")
+
+# Convert 'category' to numeric for x-axis ordering
+mutant_set_data$category <- as.numeric(as.character(mutant_set_data$category))
+
+# Create a new column to define the site set (cloud, shell, core)
+mutant_set_data$site_set <- case_when(
+  mutant_set_data$category >= 2 & mutant_set_data$category <= 16 ~ "shell",
+  mutant_set_data$category == 17 ~ "core",
+  mutant_set_data$category >= 1 ~ "cloud"
+)
+sum(mutant_set_data[mutant_set_data$site_set=="shell",]$count)
+
+# Define custom colors for each site set
+colors <- c("cloud" = "#0f9fd5",  
+            "shell" = "#a02c94",  
+            "core" = "#e97232")   
+
+# Plot
+mutant_set_plot <- ggplot(mutant_set_data, aes(x = category, y = count, fill = site_set)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = colors, 
+                    labels = c("cloud", "core", "shell")) +  
+  labs(
+    title = "m6anet sites prob_mod > 0.9 & percent_mod > 10% in wild types",
+    x = "Number of samples",
+    y = "m6A site counts",
+    fill = "Site Set"
+  ) +
+  theme_minimal() +
+  scale_x_continuous(breaks = unique(mutant_set_data$category))  # Ensure x-axis is numeric in order
+
+mutant_set_plot
+```
+Is there a difference between the three mutant types and the sites left modified in each?
+
+
+Merge the two tables 
+```{r}
+col0_mutant_counts <- merge(col0_result, mutant_result, by = c("transcript_id", "transcript_position", "kmer"), all.x = T)
+colnames(col0_mutant_counts)[4:5] <- c("col0_count", "mutant_count")
+head(col0_mutant_counts)
+
+```
+Plot the core - shell - cloud genes combined with mutant data
+```{r}
+set_data <- as.data.table(table(col0_mutant_counts$col0_count))
+colnames(set_data) <- c("category", "count")
+set_data2 <- as.data.table(table(col0_mutant_counts$col0_count[col0_mutant_counts$mutant_count>0]))
+colnames(set_data2) <- c("category", "count")
+set_data3 <- as.data.table(table(col0_mutant_counts$col0_count[col0_mutant_counts$mutant_count>1]))
+colnames(set_data3) <- c("category", "count")
+
+# Convert 'category' to numeric for x-axis ordering
+set_data$category <- as.numeric(as.character(set_data$category))
+# Create a new column to define the site set (cloud, shell, core)
+set_data$site_set <- case_when(
+  set_data$category >= 2 & set_data$category <= shell ~ "shell",
+  set_data$category == core ~ "core",
+  set_data$category >= 1 ~ "cloud"
+)
+sum(set_data[set_data$site_set=="shell",]$count)
+
+# Convert 'category' to numeric for x-axis ordering
+set_data2$category <- as.numeric(as.character(set_data2$category))
+# Create a new column to define the site set (cloud, shell, core)
+set_data2$site_set <- case_when(
+  set_data2$category >= 2 & set_data2$category <= shell ~ "shell",
+  set_data2$category == core ~ "core",
+  set_data2$category >= 1 ~ "cloud"
+)
+sum(set_data2[set_data2$site_set=="shell",]$count)
+
+# Convert 'category' to numeric for x-axis ordering
+set_data3$category <- as.numeric(as.character(set_data3$category))
+# Create a new column to define the site set (cloud, shell, core)
+set_data3$site_set <- case_when(
+  set_data3$category >= 2 & set_data3$category <= shell ~ "shell",
+  set_data3$category == core ~ "core",
+  set_data3$category >= 1 ~ "cloud"
+)
+sum(set_data3[set_data3$site_set=="shell",]$count)
+
+# Define custom colors for each site set
+colors <- c("cloud" = "#0f9fd5",  # Blue for cloud
+            "shell" = "#a02c94",  # Purple for shell
+            "core" = "#e97232")   # Orange for core
+
+# Plot
+set_plot <- ggplot() +
+  geom_bar(data = set_data, aes(x = category, y = count, fill = site_set), 
+           stat = "identity", position = "identity", alpha = 0.6) +
+  geom_bar(data = set_data2, aes(x = category, y = count, fill = site_set), 
+           stat = "identity", position = "identity", alpha = 0.4, colour = "black") +
+  geom_bar(data = set_data3, aes(x = category, y = count, fill = site_set), 
+           stat = "identity", position = "identity", alpha = 0.4, colour = "black") +
+  scale_fill_manual(values = colors, 
+                    labels = c("cloud", "core", "shell")) +  # Labels for the legend
+  labs(
+    title = "m6anet sites in wild type at least one mutant sample",
+    x = "Number of samples",
+    y = "m6A site counts",
+    fill = "Site Set"
+  ) +
+  theme_minimal() +
+  scale_x_continuous(breaks = unique(set_data$category))  # Ensure x-axis is numeric in order
+
+set_plot
+```
+Check for if there is a drop in predicted m6a between wt & mutant - get means for both and compare
+
+Percentage modification data
+```{r}
+# Function to add n_reads from m6a_sites_pass_list to positions_mapped_annotated
+add_columns <- function(input_table, m6a_sites_df, column_name, variable_name) {
+  # Convert variable_name to a symbol (ensures it's treated as a column name)
+  variable_name_sym <- ensym(variable_name)
+  
+  # Ensure transcript_position is integer in both tables
+  m6a_sites_df <- m6a_sites_df %>%
+    mutate(transcript_position = as.integer(transcript_position))
+  input_table <- input_table %>%
+    mutate(transcript_position = as.integer(transcript_position))
+  
+  # Perform the left join to get the specified variable from m6a_sites_df to input_table
+  input_table <- input_table %>%
+    left_join(m6a_sites_df %>%
+                dplyr::select(transcript_id, transcript_position, !!variable_name_sym),
+              by = c("transcript_id", "transcript_position")) %>%
+    # Add the new column with the appropriate name
+    mutate(!!column_name := ifelse(is.na(!!variable_name_sym), NA, !!variable_name_sym)) %>%
+    # Optionally remove the intermediate variable column if you don't need it
+    dplyr::select(-!!variable_name_sym)
+  
+  return(input_table)
+}
+
+positions_mapped_annotated_mod_ratio <- all_mutant_sites
+for(i in seq_along(m6a_sites_unfiltered_list)) {
+  column_name <- paste0("mod_ratio_", i)  
+  positions_mapped_annotated_mod_ratio <- add_columns(
+    positions_mapped_annotated_mod_ratio,
+    m6a_sites_unfiltered_list[[i]],
+    column_name,
+    "mod_ratio"
+  )
+}
+
+positions_mapped_annotated_mod_ratio <- positions_mapped_annotated_mod_ratio %>%
+  mutate(
+    mean_mod_ratio = rowMeans(dplyr::select(., starts_with("mod_ratio_")), na.rm = TRUE)
+  )
+
+head(positions_mapped_annotated_mod_ratio)
+
+positions_mapped_annotated_mod_ratio <- all_mutant_sites
+for(i in seq_along(mutant_sites_unfiltered_list)) {
+  column_name <- paste0("mod_ratio_", i)  
+  positions_mapped_annotated_mod_ratio <- add_columns(
+    positions_mapped_annotated_mod_ratio,
+    mutant_sites_unfiltered_list[[i]],
+    column_name,
+    "mod_ratio"
+  )
+}
+
+positions_mapped_annotated_mod_ratio <- positions_mapped_annotated_mod_ratio %>%
+  mutate(
+    mean_mod_ratio = rowMeans(dplyr::select(., starts_with("mod_ratio_")), na.rm = TRUE)
+  )
+
+head(positions_mapped_annotated_mod_ratio)
+```
+```{r}
+cor_test <- cor.test(positions_mapped_annotated_mod_ratio$count, positions_mapped_annotated_mod_ratio$mean_mod_ratio, use = "complete.obs")
+# Extract correlation coefficient and p-value
+correlation_value <- round(cor_test$estimate, 2)
+p_value <- round(cor_test$p.value, 4)
+
+# Create the plot
+ggplot(positions_mapped_annotated_mod_ratio, aes(x = mean_mod_ratio, y = count, group = count)) +
+  geom_boxplot() +  
+  labs(
+    title = paste("Count vs Mean percent modified \nCorrelation: ", correlation_value, ", p-value: ", p_value),
+    x = "Mean percentage modified",
+    y = "Number of samples where site was predicted"
+  ) +
+  theme_minimal()
+```
+Probability data
+```{r}
+positions_mapped_annotated_probability_modified <- positions_mapped_annotated
+for(i in seq_along(m6a_sites_unfiltered_list)) {
+  column_name <- paste0("probability_modified_", i)  
+  positions_mapped_annotated_probability_modified <- add_columns(positions_mapped_annotated_probability_modified, m6a_sites_unfiltered_list[[i]], column_name, "probability_modified")
+}
+
+positions_mapped_annotated_probability_modified <- positions_mapped_annotated_probability_modified %>%
+  mutate(
+    mean_probability_modified = rowMeans(dplyr::select(., starts_with("probability_modified_")), na.rm = TRUE)   # Calculate mean probability_modified, ignoring NAs
+  )
+
+cor_test <- cor.test(positions_mapped_annotated_probability_modified$count, positions_mapped_annotated_probability_modified$mean_probability_modified, use = "complete.obs")
+# Extract correlation coefficient and p-value
+correlation_value <- round(cor_test$estimate, 2)
+p_value <- round(cor_test$p.value, 6)
+
+# Create the plot
+ggplot(positions_mapped_annotated_probability_modified, aes(x = mean_probability_modified, y = count, group = count)) +
+  geom_boxplot()+
+  geom_vline(xintercept = 0.9, color = "red", size=1)+
+  labs(
+    title = paste("Count vs mean probability \nCorrelation: ", correlation_value, ", p-value: ", p_value),
+    x = "Mean probability of modification",
+    y = "Number of samples where site was predicted"
+  ) +
+  theme_minimal()
+```
+
+Is there a difference between the three mutant types?

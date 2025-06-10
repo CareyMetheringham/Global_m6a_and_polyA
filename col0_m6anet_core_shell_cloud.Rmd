@@ -1,0 +1,663 @@
+---
+title: "Analysis of the Core, Shell & Cloud sites in m6anet results"
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(data.table)
+library(clusterProfiler)
+library(org.At.tair.db)
+library(readr)
+library(GenomicFeatures)
+library(purrr)
+library(reshape2)
+library(Biostrings)
+```
+
+Load genome and annotation
+```{r}
+At.genome <- Rsamtools::FaFile("~/Documents/Ref_data/TAIR10_chr_all.fas")
+# Load TxDb
+txdb <- makeTxDbFromGFF("../../Ref_data/Araport11_GFF3_genes_transposons.201606.no_chr.gtf")
+```
+```{r}
+#Define the the location of the input files
+#directory <- "/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/m6Anet/data/m6anet"
+directory <- "/Users/CMetheringham001/Documents/Reader_Writer_Paper/GlobalM6A/m6anet_results"
+#Probability threshold for inclusion of site
+threshold = 0.9
+#List of col0 m6A files
+col0_files <- c(
+    "col0_fpa_2",
+    "col0_fpa_4",
+    "col0_1_1",
+    "col0_1_2",
+    "col0_1_3",
+    "col0_1_4",
+    #"col0_3_1",
+    #"col0_3_2",
+    #"col0_3_3",
+    #"col0_3_4",
+    "col0_1",
+    "col0_2",
+    "col0_4",
+    #"col0_8_1", - Excluded for having less than 1 million reads
+    #"col0_8_2", - Excluded for having less than 1 million reads
+    "col0_8_4",
+    "col0_2024_1",
+    "col0_2024_2",
+    "col0_2024_3"
+)
+```
+Get the files and filter for sites which pass the probability threshold
+```{r}
+m6a_sites_pass_list <- list()
+for (i in 1:length(col0_files)){
+    file_name <- paste(directory,col0_files[i],"data.site_proba.csv", sep ="/")
+    m6a_sites <- read.csv(file_name)
+    m6a_sites_pass_list[[i]] <- m6a_sites[which(m6a_sites$probability_modified > threshold & m6a_sites$mod_ratio >= 0.1) ,]
+}
+```
+
+
+```{r}
+m6a_sites_unfiltered_list <- list()
+for (i in 1:length(col0_files)){
+    file_name <- paste(directory,col0_files[i],"data.site_proba.csv", sep ="/")
+    m6a_sites <- read.csv(file_name)
+    m6a_sites_unfiltered_list[[i]] <- m6a_sites
+}
+```
+Define the size of the sets
+```{r}
+core <- length(m6a_sites_pass_list)
+shell <- length(m6a_sites_pass_list) -1
+```
+
+Get a list of all possible sites
+```{r}
+# Collect all unique site combinations from all data frames
+all_sites <- bind_rows(lapply(m6a_sites_pass_list, function(df) {
+  df %>% mutate(across(c("transcript_id", "transcript_position", "kmer"), as.character)) %>%
+    dplyr::select(transcript_id, transcript_position, kmer)
+})) %>% distinct()
+```
+
+
+```{r}
+# Count in how many data frames each row appears
+combo_counts <- sapply(seq_len(nrow(all_sites)), function(i) {
+  combo <- all_sites[i, , drop = FALSE]
+  sum(sapply(m6a_sites_pass_list, function(df) {
+    df_subset <- df[, c("transcript_id", "transcript_position", "kmer")]
+    # Make sure all are same type (e.g., character) for exact matching
+    all_names <- names(combo)
+    df_subset <- df_subset %>% mutate(across(everything(), as.character))
+    combo <- combo %>% mutate(across(everything(), as.character))
+    nrow(semi_join(df_subset, combo, by = all_names)) > 0
+  }))
+})
+result <- cbind(all_sites, count = combo_counts)
+table(result$count)
+```
+Convert transcriptome positions to genomic and update table
+```{r}
+# Exons grouped by transcript
+exons_by_tx <- exonsBy(txdb, by = "tx", use.names = TRUE)
+
+# List of positions
+positions <- tibble(
+  result[,1:2]
+)
+positions <- positions %>%
+  mutate(transcript_position = as.numeric(transcript_position))
+
+
+# Preprocess: For each transcript, precompute cumulative exon lengths
+precompute_exons <- function(exons) {
+  if (as.character(strand(exons)[1]) == "+") {
+    exons <- exons[order(start(exons))]
+  } else {
+    exons <- exons[order(end(exons), decreasing = TRUE)]
+  }
+  tibble(
+    seqnames = as.character(seqnames(exons)),
+    start = start(exons),
+    end = end(exons),
+    strand = as.character(strand(exons)),
+    width = width(exons),
+    cumstart = cumsum(c(0, head(width(exons), -1)))  # cumulative start
+  )
+}
+
+exons_lookup <- lapply(exons_by_tx, precompute_exons)
+
+# Faster mapping function
+fast_map_transcript_to_genomic <- function(transcript_id, transcript_position) {
+  exons_tbl <- exons_lookup[[transcript_id]]
+  if (is.null(exons_tbl)) {
+    return(tibble(seqnames = NA, genomic_pos = NA, strand = NA))
+  }
+  
+  # Find exon
+  exon_idx <- which(transcript_position > exons_tbl$cumstart)[length(which(transcript_position > exons_tbl$cumstart))]
+  if (is.na(exon_idx)) {
+    return(tibble(seqnames = NA, genomic_pos = NA, strand = NA))
+  }
+  offset <- transcript_position - exons_tbl$cumstart[exon_idx] - 1
+  if (exons_tbl$strand[exon_idx] == "+") {
+    genomic_pos <- exons_tbl$start[exon_idx] + offset
+  } else {
+    genomic_pos <- exons_tbl$end[exon_idx] - offset
+  }
+  tibble(
+    seqnames = exons_tbl$seqnames[exon_idx],
+    genomic_pos = genomic_pos,
+    strand = exons_tbl$strand[exon_idx]
+  )
+}
+```
+
+
+```{r}
+# Apply mapping fast across rows
+mapped <- positions %>%
+  pmap_dfr(fast_map_transcript_to_genomic)
+positions_mapped <- bind_cols(result, mapped)
+```
+Determine the location within annotation
+```{r}
+positions_mapped_clean <- positions_mapped %>% filter(!is.na(genomic_pos))
+
+# Extract UTRs
+five_utrs <- fiveUTRsByTranscript(txdb, use.names=TRUE)
+three_utrs <- threeUTRsByTranscript(txdb, use.names=TRUE)
+
+# Flatten into GRanges
+five_utrs_flat <- unlist(five_utrs, use.names=FALSE)
+three_utrs_flat <- unlist(three_utrs, use.names=FALSE)
+
+five_utrs_flat$region_type <- "5UTR"
+three_utrs_flat$region_type <- "3UTR"
+
+# Combine 5' and 3' UTRs into one GRanges
+utr_regions <- c(five_utrs_flat, three_utrs_flat)
+
+# Make GRanges from your table
+data_gr <- GRanges(
+  seqnames = positions_mapped_clean$seqnames,
+  ranges = IRanges(start = positions_mapped_clean$genomic_pos, end = positions_mapped_clean$genomic_pos),
+  strand = positions_mapped_clean$strand,
+  transcript_id = positions_mapped_clean$transcript_id
+)
+
+# Find overlaps
+hits <- findOverlaps(data_gr, utr_regions, ignore.strand=FALSE)
+
+# Create a vector of UTR annotations
+utr_annotation <- rep(NA_character_, length(data_gr))
+utr_annotation[queryHits(hits)] <- mcols(utr_regions)$region_type[subjectHits(hits)]
+
+# Add to your table
+positions_mapped_annotated <- positions_mapped_clean %>%
+  mutate(UTR_type = utr_annotation)
+```
+
+
+```{r}
+# View result
+table(positions_mapped_annotated$UTR_type)
+table(positions_mapped_annotated$count)
+```
+Save the annotated table
+```{r}
+write.csv(positions_mapped_annotated, file = "m6anet_positions.csv", row.names = F)
+```
+
+Plot the core - shell - cloud genes
+```{r}
+set_data <- as.data.table(table(positions_mapped_annotated$count))
+colnames(set_data) <- c("category", "count")
+
+# Convert 'category' to numeric for x-axis ordering
+set_data$category <- as.numeric(as.character(set_data$category))
+
+# Create a new column to define the site set (cloud, shell, core)
+set_data$site_set <- case_when(
+  set_data$category >= 2 & set_data$category <= shell ~ "shell",
+  set_data$category == core ~ "core",
+  set_data$category >= 1 ~ "cloud"
+)
+sum(set_data[set_data$site_set=="shell",]$count)
+
+# Define custom colors for each site set
+colors <- c("cloud" = "#0f9fd5",  # Blue for cloud
+            "shell" = "#a02c94",  # Purple for shell
+            "core" = "#e97232")   # Orange for core
+
+# Plot
+set_plot <- ggplot(set_data, aes(x = category, y = count, fill = site_set)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = colors, 
+                    labels = c("cloud", "core", "shell")) +  # Labels for the legend
+  labs(
+    title = "m6anet sites prob_mod > 0.9 & percent_mod > 10% in wild types",
+    x = "Number of samples",
+    y = "m6A site counts",
+    fill = "Site Set"
+  ) +
+  theme_minimal() +
+  scale_x_continuous(breaks = unique(set_data$category))  # Ensure x-axis is numeric in order
+
+set_plot
+
+#Save the plot
+ggsave("Figures/m6anet_pos_sets.png", plot = set_plot, width = 10, height = 5, dpi = 300, bg = "white")
+ggsave("Figures/m6anet_pos_sets.pdf", plot = set_plot, width = 10, height = 5)
+```
+kmer distribution shifts as the number of samples changes
+```{r}
+count_kmers <- function(data, n_samples) {
+  filtered_data <- data[data$count == n_samples, ]
+  as.data.table(table(filtered_data$kmer))
+}
+```
+
+M6a load
+```{r}
+df_count <- positions_mapped_annotated %>%
+  group_by(transcript_id) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+count_freq <- df_count %>%
+  count(count, name = "num_transcripts")
+
+m6a_load <- ggplot(count_freq, aes(x = factor(count), y = num_transcripts)) +
+  geom_col(fill = "skyblue", color = "black") +
+  labs(
+    x = "m6A sites per transcript",
+    y = "Number of transcripts",
+    title = "Distribution of m6A site load per transcript"
+  ) +
+  theme_minimal()
+
+m6a_load
+
+ggsave("Figures/m6anet_m6a_load.png", plot = m6a_load, width = 8, height = 5, dpi = 300, bg = "white")
+ggsave("Figures/m6anet_m6a_load.pdf", plot = m6a_load, width = 8, height = 5)
+
+mean(df_count$count)
+table(df_count$count)
+```
+What are the genes that have multiple sites?
+
+
+Coverage data
+```{r}
+positions_mapped_annotated_backup <- positions_mapped_annotated
+
+# Function to add n_reads from m6a_sites_pass_list to positions_mapped_annotated
+add_columns <- function(input_table, m6a_sites_df, column_name, variable_name) {
+  # Convert variable_name to a symbol (ensures it's treated as a column name)
+  variable_name_sym <- ensym(variable_name)
+  
+  # Ensure transcript_position is integer in both tables
+  m6a_sites_df <- m6a_sites_df %>%
+    mutate(transcript_position = as.integer(transcript_position))
+  input_table <- input_table %>%
+    mutate(transcript_position = as.integer(transcript_position))
+  
+  # Perform the left join to get the specified variable from m6a_sites_df to input_table
+  input_table <- input_table %>%
+    left_join(m6a_sites_df %>%
+                dplyr::select(transcript_id, transcript_position, !!variable_name_sym),
+              by = c("transcript_id", "transcript_position")) %>%
+    # Add the new column with the appropriate name
+    mutate(!!column_name := ifelse(is.na(!!variable_name_sym), NA, !!variable_name_sym)) %>%
+    # Optionally remove the intermediate variable column if you don't need it
+    dplyr::select(-!!variable_name_sym)
+  
+  return(input_table)
+}
+```
+```{r}
+positions_mapped_annotated_n_reads <- positions_mapped_annotated
+for(i in seq_along(m6a_sites_unfiltered_list)) {
+  column_name <- paste0("n_reads_", i)  
+  positions_mapped_annotated_n_reads <- add_columns(positions_mapped_annotated_n_reads, m6a_sites_unfiltered_list[[i]], column_name, "n_reads")
+}
+positions_mapped_annotated_n_reads <- positions_mapped_annotated_n_reads %>%
+  mutate(
+    total_n_reads = rowSums(dplyr::select(., starts_with("n_reads_")), na.rm = TRUE),  # Sum n_reads columns, ignoring NAs
+    mean_n_reads = rowMeans(dplyr::select(., starts_with("n_reads_")), na.rm = TRUE)   # Calculate mean n_reads, ignoring NAs
+  )
+```
+Plot the number of reads against number of samples
+```{r}
+cor_test <- cor.test(positions_mapped_annotated_n_reads$count, positions_mapped_annotated_n_reads$total_n_reads, use = "complete.obs")
+# Extract correlation coefficient and p-value
+correlation_value <- round(cor_test$estimate, 2)
+p_value <- round(cor_test$p.value, 4)
+
+# Create the plot
+ggplot(positions_mapped_annotated_n_reads, aes(x = total_n_reads, y = count, group = count)) +
+  geom_boxplot()+
+  labs(
+    title = paste("Count vs Total n-Reads\nCorrelation: ", correlation_value, ", p-value: ", p_value),
+    x = "Total number of reads covering site",
+    y = "Number of samples where site was predicted"
+  ) +
+  theme_minimal()
+
+cor_test <- cor.test(positions_mapped_annotated_n_reads$count, positions_mapped_annotated_n_reads$mean_n_reads, use = "complete.obs")
+# Extract correlation coefficient and p-value
+correlation_value <- round(cor_test$estimate, 2)
+p_value <- round(cor_test$p.value, 4)
+
+# Create the plot
+ggplot(positions_mapped_annotated_n_reads, aes(x = mean_n_reads, y = count, group = count)) +
+  geom_boxplot() +  
+  labs(
+    title = paste("Count vs Total n-Reads\nCorrelation: ", correlation_value, ", p-value: ", p_value),
+    x = "Mean number of reads covering site",
+    y = "Number of samples where site was predicted"
+  ) +
+  theme_minimal()
+```
+Percentage modification data
+```{r}
+positions_mapped_annotated_mod_ratio <- positions_mapped_annotated
+for(i in seq_along(m6a_sites_unfiltered_list)) {
+  column_name <- paste0("mod_ratio_", i)  
+  positions_mapped_annotated_mod_ratio <- add_columns(
+    positions_mapped_annotated_mod_ratio,
+    m6a_sites_unfiltered_list[[i]],
+    column_name,
+    "mod_ratio"
+  )
+}
+
+positions_mapped_annotated_mod_ratio <- positions_mapped_annotated_mod_ratio %>%
+  mutate(
+    mean_mod_ratio = rowMeans(dplyr::select(., starts_with("mod_ratio_")), na.rm = TRUE)
+  )
+
+head(positions_mapped_annotated_mod_ratio)
+```
+```{r}
+cor_test <- cor.test(positions_mapped_annotated_mod_ratio$count, positions_mapped_annotated_mod_ratio$mean_mod_ratio, use = "complete.obs")
+# Extract correlation coefficient and p-value
+correlation_value <- round(cor_test$estimate, 2)
+p_value <- round(cor_test$p.value, 4)
+
+# Create the plot
+ggplot(positions_mapped_annotated_mod_ratio, aes(x = mean_mod_ratio, y = count, group = count)) +
+  geom_boxplot() +  
+  labs(
+    title = paste("Count vs Mean percent modified \nCorrelation: ", correlation_value, ", p-value: ", p_value),
+    x = "Mean percentage modified",
+    y = "Number of samples where site was predicted"
+  ) +
+  theme_minimal()
+```
+Probability data
+```{r}
+positions_mapped_annotated_probability_modified <- positions_mapped_annotated
+for(i in seq_along(m6a_sites_unfiltered_list)) {
+  column_name <- paste0("probability_modified_", i)  
+  positions_mapped_annotated_probability_modified <- add_columns(positions_mapped_annotated_probability_modified, m6a_sites_unfiltered_list[[i]], column_name, "probability_modified")
+}
+
+positions_mapped_annotated_probability_modified <- positions_mapped_annotated_probability_modified %>%
+  mutate(
+    mean_probability_modified = rowMeans(dplyr::select(., starts_with("probability_modified_")), na.rm = TRUE)   # Calculate mean probability_modified, ignoring NAs
+  )
+
+cor_test <- cor.test(positions_mapped_annotated_probability_modified$count, positions_mapped_annotated_probability_modified$mean_probability_modified, use = "complete.obs")
+# Extract correlation coefficient and p-value
+correlation_value <- round(cor_test$estimate, 2)
+p_value <- round(cor_test$p.value, 6)
+
+# Create the plot
+ggplot(positions_mapped_annotated_probability_modified, aes(x = mean_probability_modified, y = count, group = count)) +
+  geom_boxplot()+
+  geom_vline(xintercept = 0.9, color = "red", size=1)+
+  labs(
+    title = paste("Count vs mean probability \nCorrelation: ", correlation_value, ", p-value: ", p_value),
+    x = "Mean probability of modification",
+    y = "Number of samples where site was predicted"
+  ) +
+  theme_minimal()
+```
+
+Pulling out and plotting the region surrounding the m6a
+```{r}
+positions_df <- positions_mapped_annotated  
+positions_df$seqnames <- paste0("Chr", positions_df$seqnames)
+
+
+# Convert to GRanges
+positions_gr <- GRanges(
+  seqnames = positions_df$seqnames,        # use 'seqnames' column
+  ranges = IRanges(start = positions_df$genomic_pos, width = 1),  # use 'genomic_pos'
+  strand = positions_df$strand             # use 'strand'
+)
+
+# Expand around position by flank_width
+flank_width <- 250
+ranges(positions_gr) <- IRanges(
+  start = start(positions_gr) - flank_width,
+  end = start(positions_gr) + flank_width - 1
+)
+
+# Ensure no negative starts
+start(ranges(positions_gr))[start(ranges(positions_gr)) < 1] <- 1
+
+sequences <- getSeq(At.genome, positions_gr)
+
+# Convert to character matrix
+seq_matrix <- do.call(rbind, strsplit(as.character(sequences), split = ""))
+
+# Keep only sequences where the *center* base (position 151) is 'A'
+seq_matrix <- seq_matrix[seq_matrix[, 251] == "A", ]
+seq_matrix <- seq_matrix[seq_matrix[, 252] == "C", ]
+
+# Total number of sequences remaining
+n <- nrow(seq_matrix)
+
+# Tabulate base frequencies as percentages per position
+base_freqs <- data.table(
+  position = 1:ncol(seq_matrix),
+  A = colSums(seq_matrix == "A") / n * 100,
+  U = colSums(seq_matrix == "T") / n * 100,
+  C = colSums(seq_matrix == "C") / n * 100,
+  G = colSums(seq_matrix == "G") / n * 100
+)
+
+# Convert to long format for plotting
+long_freqs <- melt(
+  base_freqs,
+  id.vars = "position",
+  variable.name = "base",
+  value.name = "count"
+)
+```
+Plot the result
+
+```{r}
+base_plot <- ggplot(data = long_freqs, aes(x = position -251, y = count, group = base, colour = base))+
+    geom_point()+
+    #geom_line()+
+    theme_minimal()+
+    labs(x = "Relative position", y = "Base %", title = "Base distribution around m6A: m6anet sites prob_mod > 0.9, percent_mod > 10% in wild type")
+
+base_plot
+
+#Save the plot
+ggsave("Figures/m6anet_pos_base_distribution.png", plot = base_plot, width = 10, height = 5, dpi = 300, bg = "white")
+ggsave("Figures/m6anet_pos_base_distribution.pdf", plot = base_plot, width = 10, height = 5)
+```
+Get the distance to nearest annotated poly(A) start site
+
+```{r}
+library(rtracklayer)
+annotation <- import("../../Ref_data/Araport11_GFF3_genes_transposons.201606.no_chr.gtf")
+three_prime_UTRs <- annotation[annotation$type == "3UTR", ]
+polyA_df <- as.data.frame(three_prime_UTRs)
+
+positions_mapped_annotated_plus_polya <- merge(positions_mapped_annotated, polyA_df, by = c("transcript_id", "seqnames", "strand"), all.x = TRUE)
+positions_mapped_annotated_plus_polya <- positions_mapped_annotated_plus_polya %>% 
+    mutate(distance = genomic_pos - end)
+
+polya_distance <- ggplot(positions_mapped_annotated_plus_polya[positions_mapped_annotated_plus_polya$UTR_type=="3UTR",], aes(x = distance)) +
+    geom_histogram(bins = 100, fill = "skyblue", color = "black") +
+    labs(x = "Distance from annotated poly(A) site") +
+    theme_minimal() +
+    scale_x_continuous(limits = c(-1000, 1000))+
+    theme(
+      axis.text = element_text(size = 12),
+      axis.title = element_text(size = 14)
+    )
+polya_distance
+#Save the plot
+ggsave("Figures/m6anet_polya_dist.png", plot = polya_distance, width = 8, height = 5, dpi = 300, bg = "white")
+ggsave("Figures/m6anet_polya_dist.pdf", plot = polya_distance, width = 8, height = 5)
+
+#Does this distance correlate with other factors?
+positions_mapped_annotated_plus_polya <- merge(positions_mapped_annotated_plus_polya, positions_mapped_annotated_probability_modified, by = c("transcript_id", "seqnames", "strand"))
+cor_test <- cor.test(positions_mapped_annotated_plus_polya$distance, positions_mapped_annotated_plus_polya$mean_probability_modified, use = "complete.obs")
+# Extract correlation coefficient and p-value
+correlation_value <- round(cor_test$estimate, 2)
+p_value <- round(cor_test$p.value, 6)
+
+# Create the plot
+ggplot(positions_mapped_annotated_plus_polya, aes(y = distance, x = mean_probability_modified)) +
+  geom_point() +  # Scatter plot
+  labs(
+    title = paste("Correlation: ", correlation_value, ", p-value: ", p_value),
+    x = "Mean probability of modification",
+    y = "Distance from annotated poly(A) site"
+  ) +
+  theme_minimal()
+
+positions_mapped_annotated_plus_polya <- merge(positions_mapped_annotated_plus_polya, positions_mapped_annotated_mod_ratio, by = c("transcript_id", "seqnames", "strand"))
+cor_test <- cor.test(positions_mapped_annotated_plus_polya$distance, positions_mapped_annotated_plus_polya$mean_probability_modified, use = "complete.obs")
+# Extract correlation coefficient and p-value
+correlation_value <- round(cor_test$estimate, 2)
+p_value <- round(cor_test$p.value, 6)
+
+# Create the plot
+ggplot(positions_mapped_annotated_plus_polya, aes(y = distance, x = mean_mod_ratio)) +
+  geom_point() +  # Scatter plot
+  labs(
+    title = paste("Correlation: ", correlation_value, ", p-value: ", p_value),
+    x = "Mean percentage of modification",
+    y = "Distance from annotated poly(A) site"
+  ) +
+  theme_minimal()
+```
+What is the kmer distribution on the sets
+
+```{r}
+count_kmers <- function(data) {
+  dt <- as.data.table(data)
+  result <- dt[, .N, by = .(count, kmer)]
+  setorder(result, count, -N)
+  return(result)
+}
+count_distribution <- count_kmers(positions_mapped_annotated)
+count_distribution[, percent := N / sum(N) * 100, by = count]
+
+kmer_plot <- ggplot(count_distribution, aes(x = factor(count), y = percent, fill = kmer)) +
+  geom_col(position = "stack") +
+    labs(title = "Distribution of kmers in predicted m6A sites",
+       y = "Percentage",
+       x = "Number of samples where site is found") +
+  theme_minimal()
+
+kmer_plot
+
+#Save the plot
+ggsave("Figures/m6anet_kmer_dist.png", plot = kmer_plot, width = 10, height = 5, dpi = 300, bg = "white")
+ggsave("Figures/m6anet_kmer_dist.pdf", plot = kmer_plot, width = 10, height = 5)
+```
+
+
+What type of genes are there
+```{r}
+result$gene_id <- sub("\\..*", "", result$transcript_id)
+```
+```{r}
+# Perform GO enrichment analysis
+ego1 <- enrichGO(
+  gene          = result$gene_id,
+  OrgDb         = org.At.tair.db,
+  keyType       = "TAIR",
+  ont           = "BP",           # Options: "BP", "MF", "CC", or "ALL"
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.2,
+  readable      = TRUE
+)
+# View the top enriched GO terms
+head(ego1, 20)
+dotplot(ego1, showCategory = 20)
+```
+Apply weighting/ranking of genes
+
+Core genes
+
+```{r}
+# Perform GO enrichment analysis
+ego2 <- enrichGO(
+  gene          = result$gene_id[result$count==core],
+  OrgDb         = org.At.tair.db,
+  keyType       = "TAIR",
+  ont           = "BP",           # Options: "BP", "MF", "CC", or "ALL"
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.2,
+  readable      = TRUE
+)
+
+# View the top enriched GO terms
+head(ego2)
+dotplot(ego2, showCategory = 20)
+```
+Test the core genes against the background of all genes with predicted m6a
+```{r}
+# Perform GO enrichment analysis
+ego <- enrichGO(
+  gene          = result$gene_id[result$count==core],
+  universe      = result$gene_id,
+  OrgDb         = org.At.tair.db,
+  keyType       = "TAIR",
+  ont           = "BP",           # Options: "BP", "MF", "CC", or "ALL"
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.2,
+  readable      = TRUE
+)
+
+# View the top enriched GO terms
+head(ego)
+dotplot(ego, showCategory = 20)
+```
+GO enrichment in genes with more than one site of modification
+```{r}
+df_count$gene_id <- sub("\\..*", "", df_count$transcript_id)
+ego <- enrichGO(
+  gene          = df_count$gene_id[df_count$count>1],
+  universe      = result$gene_id,
+  OrgDb         = org.At.tair.db,
+  keyType       = "TAIR",
+  ont           = "BP",           # Options: "BP", "MF", "CC", or "ALL"
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.2,
+  readable      = TRUE
+)
+
+# View the top enriched GO terms
+head(ego, 20)
+dotplot(ego, showCategory = 20)
+```
+
