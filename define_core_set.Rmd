@@ -1,0 +1,278 @@
+---
+title: "Analysis of the Core, Shell & Cloud sites in m6anet results"
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(data.table)
+library(clusterProfiler)
+library(org.At.tair.db)
+library(readr)
+library(GenomicFeatures)
+library(purrr)
+library(reshape2)
+library(Biostrings)
+```
+
+Load genome and annotation
+```{r}
+At.genome <- Rsamtools::FaFile("/Volumes/cluster/ggs_lab/cmetheringham001/Shared_Ref/TAIR10_chr_all.fas")
+# Load TxDb
+txdb <- makeTxDbFromGFF("/Volumes/cluster/ggs_lab/cmetheringham001/Shared_Ref/Araport11_GFF3_genes_transposons.201606.no_chr.gtf")
+```
+```{r}
+#Define the the location of the input files
+directory <- "/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/m6Anet/data/m6anet"
+#directory <- "/Users/CMetheringham001/Documents/Reader_Writer_Paper/GlobalM6A/m6anet_results"
+#Probability threshold for inclusion of site
+threshold = 0.9
+#List of col0 m6A files
+col0_files <- c(
+    "col0_fpa_2",
+    "col0_fpa_4",
+    "col0_1_1",
+    "col0_1_2",
+    "col0_1_3",
+    "col0_1_4",
+    #"col0_3_1",
+    #"col0_3_2",
+    #"col0_3_3",
+    #"col0_3_4",
+    "col0_1",
+    "col0_2",
+    "col0_4",
+    #"col0_8_1", - Excluded for having less than 1 million reads
+    #"col0_8_2", - Excluded for having less than 1 million reads
+    "col0_8_4",
+    "col0_2024_1",
+    "col0_2024_2",
+    "col0_2024_3"
+)
+```
+Get the files and filter for sites which pass the probability threshold and a threshold of modification
+```{r}
+m6a_sites_pass_list <- list()
+for (i in 1:length(col0_files)){
+    file_name <- paste(directory,col0_files[i],"data.site_proba.csv", sep ="/")
+    m6a_sites <- read.csv(file_name)
+    m6a_sites_pass_list[[i]] <- m6a_sites[which(m6a_sites$probability_modified > threshold & m6a_sites$mod_ratio >= 0.5) ,]
+}
+```
+
+Get a list of all possible sites
+```{r}
+# Collect all unique site combinations from all data frames
+all_sites <- bind_rows(lapply(m6a_sites_pass_list, function(df) {
+  df %>% mutate(across(c("transcript_id", "transcript_position", "kmer"), as.character)) %>%
+    dplyr::select(transcript_id, transcript_position, kmer)
+})) %>% distinct()
+```
+
+Count up occurances of sites that pass the strict filters
+```{r}
+# Count in how many data frames each row appears
+combo_counts <- sapply(seq_len(nrow(all_sites)), function(i) {
+  combo <- all_sites[i, , drop = FALSE]
+  sum(sapply(m6a_sites_pass_list, function(df) {
+    df_subset <- df[, c("transcript_id", "transcript_position", "kmer")]
+    # Make sure all are same type (e.g., character) for exact matching
+    all_names <- names(combo)
+    df_subset <- df_subset %>% mutate(across(everything(), as.character))
+    combo <- combo %>% mutate(across(everything(), as.character))
+    nrow(semi_join(df_subset, combo, by = all_names)) > 0
+  }))
+})
+col0_result <- cbind(all_sites, count = combo_counts)
+table(col0_result$count)
+```
+Load in the mutant data
+```{r}
+mutant_files <- c(
+    "vir1_1_1",
+    "vir1_1_2",
+    "vir1_1_3",
+    "vir1_1_4",
+    "vir1_8_1",
+    "vir1_8_2",
+    "vir1_8_3",
+    "vir1_8_4",
+    "fip37_1",
+    "fip37_2",
+    "fip37_4",
+    "fip37_2024_1",
+    "fip37_2024_2",
+    "flacc_1",
+    "flacc_2",
+    "flacc_3",
+    "flacc_4"
+)
+```
+Get the files and filter for sites with > 0.1 predicted m6A
+```{r}
+mutant_sites_pass_list <- list()
+for (i in 1:length(mutant_files)){
+    file_name <- paste(directory,mutant_files[i],"data.site_proba.csv", sep ="/")
+    mutant_sites <- read.csv(file_name)
+    mutant_sites_pass_list[[i]] <- mutant_sites[which(m6a_sites$probability_modified > threshold & m6a_sites$mod_ratio >= 0.1) ,]
+}
+```
+```{r}
+# Collect all unique site combinations from all data frames
+all_mutant_sites <- bind_rows(lapply(mutant_sites_pass_list, function(df) {
+  df %>% mutate(across(c("transcript_id", "transcript_position", "kmer"), as.character)) %>%
+    dplyr::select(transcript_id, transcript_position, kmer)
+})) %>% distinct()
+```
+```{r}
+# Count in how many data frames each row appears
+mutant_combo_counts <- sapply(seq_len(nrow(all_mutant_sites)), function(i) {
+  combo <- all_mutant_sites[i, , drop = FALSE]
+  sum(sapply(mutant_sites_pass_list, function(df) {
+    df_subset <- df[, c("transcript_id", "transcript_position", "kmer")]
+    # Make sure all are same type (e.g., character) for exact matching
+    all_names <- names(combo)
+    df_subset <- df_subset %>% mutate(across(everything(), as.character))
+    combo <- combo %>% mutate(across(everything(), as.character))
+    nrow(semi_join(df_subset, combo, by = all_names)) > 0
+  }))
+})
+mutant_result <- cbind(all_mutant_sites, count = mutant_combo_counts)
+table(mutant_result$count)
+```
+Bind the two together
+```{r}
+col0_sites_with_mutant_info <- merge(col0_result, mutant_result, by = c("transcript_id", "transcript_position", "kmer"), all.x = T)
+colnames(col0_sites_with_mutant_info)[4:5] <- c("samples_col0", "ten_per_mutant")
+```
+Filter the table
+```{r}
+filtered_table <- col0_sites_with_mutant_info[which(col0_sites_with_mutant_info$samples_col0 > 5 &
+                                              (col0_sites_with_mutant_info$ten_per_mutant < 1 | is.na(col0_sites_with_mutant_info$ten_per_mutant))),]
+head(filtered_table)
+```
+What are the genes in the filtered table?
+
+
+```{r}
+filtered_table$gene_id <- sub("\\..*", "", filtered_table$transcript_id)
+# Perform GO enrichment analysis
+ego1 <- enrichGO(
+  gene          = filtered_table$gene_id,
+  OrgDb         = org.At.tair.db,
+  keyType       = "TAIR",
+  ont           = "BP",           # Options: "BP", "MF", "CC", or "ALL"
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.2,
+  readable      = TRUE
+)
+# View the top enriched GO terms
+head(ego1, 20)
+dotplot(ego1, showCategory = 20)
+```
+Convert transcriptome positions to genomic and update table
+```{r}
+# Exons grouped by transcript
+exons_by_tx <- exonsBy(txdb, by = "tx", use.names = TRUE)
+
+# List of positions
+positions <- tibble(
+  filtered_table[,1:2]
+)
+positions <- positions %>%
+  mutate(transcript_position = as.numeric(transcript_position))
+
+# Preprocess: For each transcript, precompute cumulative exon lengths
+precompute_exons <- function(exons) {
+  if (as.character(strand(exons)[1]) == "+") {
+    exons <- exons[order(start(exons))]
+  } else {
+    exons <- exons[order(end(exons), decreasing = TRUE)]
+  }
+  tibble(
+    seqnames = as.character(seqnames(exons)),
+    start = start(exons),
+    end = end(exons),
+    strand = as.character(strand(exons)),
+    width = width(exons),
+    cumstart = cumsum(c(0, head(width(exons), -1)))  # cumulative start
+  )
+}
+
+exons_lookup <- lapply(exons_by_tx, precompute_exons)
+# Faster mapping function
+fast_map_transcript_to_genomic <- function(transcript_id, transcript_position) {
+  exons_tbl <- exons_lookup[[transcript_id]]
+  if (is.null(exons_tbl)) {
+    return(tibble(seqnames = NA, genomic_pos = NA, strand = NA))
+  }
+  
+  # Find exon
+  exon_idx <- which(transcript_position > exons_tbl$cumstart)[length(which(transcript_position > exons_tbl$cumstart))]
+  if (is.na(exon_idx)) {
+    return(tibble(seqnames = NA, genomic_pos = NA, strand = NA))
+  }
+  offset <- transcript_position - exons_tbl$cumstart[exon_idx] - 1
+  if (exons_tbl$strand[exon_idx] == "+") {
+    genomic_pos <- exons_tbl$start[exon_idx] + offset
+  } else {
+    genomic_pos <- exons_tbl$end[exon_idx] - offset
+  }
+  tibble(
+    seqnames = exons_tbl$seqnames[exon_idx],
+    genomic_pos = genomic_pos,
+    strand = exons_tbl$strand[exon_idx]
+  )
+}
+```
+```{r}
+# Apply mapping fast across rows
+mapped <- positions %>%
+  pmap_dfr(fast_map_transcript_to_genomic)
+positions_mapped <- bind_cols(filtered_table, mapped)
+```
+Determine the location within annotation
+```{r}
+positions_mapped_clean <- positions_mapped %>% filter(!is.na(genomic_pos))
+
+# Extract UTRs
+five_utrs <- fiveUTRsByTranscript(txdb, use.names=TRUE)
+three_utrs <- threeUTRsByTranscript(txdb, use.names=TRUE)
+
+# Flatten into GRanges
+five_utrs_flat <- unlist(five_utrs, use.names=FALSE)
+three_utrs_flat <- unlist(three_utrs, use.names=FALSE)
+
+five_utrs_flat$region_type <- "5UTR"
+three_utrs_flat$region_type <- "3UTR"
+
+# Combine 5' and 3' UTRs into one GRanges
+utr_regions <- c(five_utrs_flat, three_utrs_flat)
+
+# Make GRanges from your table
+data_gr <- GRanges(
+  seqnames = positions_mapped_clean$seqnames,
+  ranges = IRanges(start = positions_mapped_clean$genomic_pos, end = positions_mapped_clean$genomic_pos),
+  strand = positions_mapped_clean$strand,
+  transcript_id = positions_mapped_clean$transcript_id
+)
+
+# Find overlaps
+hits <- findOverlaps(data_gr, utr_regions, ignore.strand=FALSE)
+
+# Create a vector of UTR annotations
+utr_annotation <- rep(NA_character_, length(data_gr))
+utr_annotation[queryHits(hits)] <- mcols(utr_regions)$region_type[subjectHits(hits)]
+
+# Add to your table
+positions_mapped_annotated <- positions_mapped_clean %>%
+  mutate(UTR_type = utr_annotation)
+
+# View result
+table(positions_mapped_annotated$UTR_type)
+table(positions_mapped_annotated$count)
+```
+
+```{r}
+write.csv(positions_mapped_annotated, file = "core_set_m6anet_positions.csv", row.names = F)
+```

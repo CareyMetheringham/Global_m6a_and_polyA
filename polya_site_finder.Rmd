@@ -65,6 +65,52 @@ polya_counts <- fread(polya_bed_file, col.names = c("chrom", "start", "end", "st
 # Display first few rows
 head(polya_counts)
 ```
+```{r}
+extract_polya_sites <- function(bam_files, region_file, output_dir = tempdir()) {
+  result_list <- list()
+  
+  for (bam_file in bam_files) {
+    # Generate output file paths
+    bam_base <- tools::file_path_sans_ext(basename(bam_file))
+    bed_file <- file.path(output_dir, paste0(bam_base, "_raw.bed"))
+    polya_bed_file <- file.path(output_dir, paste0(bam_base, "_polya.bed"))
+
+    # Construct and run samtools + gawk command
+    cmd <- glue('samtools view -F 0x4 -L "{region_file}" "{bam_file}" | \\
+      gawk \'BEGIN{{OFS="\\t"}} {{
+          read_name = $1;
+          flag = $2;
+          chrom = $3;
+          start = $4;
+          cigar = $6;
+          strand = ((and(flag, 16)) ? "-" : "+");
+          len = 0;
+          while (match(cigar, /[0-9]+[MDN=X]/)) {{
+              len += substr(cigar, RSTART, RLENGTH - 1);
+              cigar = substr(cigar, RSTART + RLENGTH);
+          }}
+          end_pos = start + len - 1;
+          polya_site = (strand == "+" ? end_pos : start);
+          print chrom, polya_site, polya_site + 1, read_name, 0, strand;
+      }}\' > "{bed_file}"')
+    system(cmd)
+
+    # Construct and run sorting + grouping command
+    sort_groupby_cmd <- glue('sort -k1,1 -k2,2n "{bed_file}" | \\
+      bedtools groupby -g 1,2,3,6 -c 4 -o count > "{polya_bed_file}"')
+    system(sort_groupby_cmd)
+
+    # Read in grouped BED file
+    polya_counts <- fread(polya_bed_file, col.names = c("chrom", "start", "end", "strand", "read_count"))
+    
+    # Store in result list
+    result_list[[bam_base]] <- polya_counts
+  }
+
+  return(result_list)
+}
+
+```
 
 
 
@@ -106,6 +152,14 @@ sliding_results <- test_subset[, slide_window_counts(.SD), by = .(chrom, strand)
 sliding_results <- sliding_results[sliding_results$count_sum>5,]
 head(sliding_results)
 ```
+Run the function
+```{r}
+bam_list <- list.files("path/to/bam/files", pattern = "\\.bam$", full.names = TRUE)
+region_bed <- "path/to/regions.bed"
+
+polya_data_list <- extract_polya_sites(bam_list, region_bed)
+```
+
 ```{r}
 library(data.table)
 

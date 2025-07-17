@@ -17,14 +17,14 @@ library(Biostrings)
 
 Load genome and annotation
 ```{r}
-At.genome <- Rsamtools::FaFile("~/Documents/Ref_data/TAIR10_chr_all.fas")
+At.genome <- Rsamtools::FaFile("/Volumes/cluster/ggs_lab/cmetheringham001/Shared_Ref/TAIR10_chr_all.fas")
 # Load TxDb
-txdb <- makeTxDbFromGFF("../../Ref_data/Araport11_GFF3_genes_transposons.201606.no_chr.gtf")
+txdb <- makeTxDbFromGFF("/Volumes/cluster/ggs_lab/cmetheringham001/Shared_Ref/Araport11_GFF3_genes_transposons.201606.no_chr.gtf")
 ```
 ```{r}
 #Define the the location of the input files
-#directory <- "/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/m6Anet/data/m6anet"
-directory <- "/Users/CMetheringham001/Documents/Reader_Writer_Paper/GlobalM6A/m6anet_results"
+directory <- "/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/m6Anet/data/m6anet"
+#directory <- "/Users/CMetheringham001/Documents/Reader_Writer_Paper/GlobalM6A/m6anet_results"
 #Probability threshold for inclusion of site
 threshold = 0.9
 #List of col0 m6A files
@@ -56,7 +56,7 @@ m6a_sites_pass_list <- list()
 for (i in 1:length(col0_files)){
     file_name <- paste(directory,col0_files[i],"data.site_proba.csv", sep ="/")
     m6a_sites <- read.csv(file_name)
-    m6a_sites_pass_list[[i]] <- m6a_sites[which(m6a_sites$probability_modified > threshold & m6a_sites$mod_ratio >= 0.5) ,]
+    m6a_sites_pass_list[[i]] <- m6a_sites[which(m6a_sites$probability_modified > threshold & m6a_sites$mod_ratio >= 0.9) ,]
 }
 ```
 

@@ -17,14 +17,14 @@ library(Biostrings)
 
 Load genome and annotation
 ```{r}
-At.genome <- Rsamtools::FaFile("~/Documents/Ref_data/TAIR10_chr_all.fas")
+At.genome <- Rsamtools::FaFile("/Volumes/cluster/ggs_lab/cmetheringham001/Shared_Ref/TAIR10_chr_all.fas")
 # Load TxDb
-txdb <- makeTxDbFromGFF("../../Ref_data/Araport11_GFF3_genes_transposons.201606.no_chr.gtf")
+txdb <- makeTxDbFromGFF("/Volumes/cluster/ggs_lab/cmetheringham001/Shared_Ref/Araport11_GFF3_genes_transposons.201606.no_chr.gtf")
 ```
 ```{r}
 #Define the the location of the input files
-#directory <- "/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/m6Anet/data/m6anet"
-directory <- "/Users/CMetheringham001/Documents/Reader_Writer_Paper/GlobalM6A/m6anet_results"
+directory <- "/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/m6Anet/data/m6anet"
+#directory <- "/Users/CMetheringham001/Documents/Reader_Writer_Paper/GlobalM6A/m6anet_results"
 #Probability threshold for inclusion of site
 threshold = 0.9
 #List of col0 m6A files
@@ -437,7 +437,6 @@ Pulling out and plotting the region surrounding the m6a
 positions_df <- positions_mapped_annotated  
 positions_df$seqnames <- paste0("Chr", positions_df$seqnames)
 
-
 # Convert to GRanges
 positions_gr <- GRanges(
   seqnames = positions_df$seqnames,        # use 'seqnames' column
@@ -659,5 +658,9 @@ ego <- enrichGO(
 # View the top enriched GO terms
 head(ego, 20)
 dotplot(ego, showCategory = 20)
+```
+Are there any patterns with the age of genes?
+```{r}
+
 ```
 

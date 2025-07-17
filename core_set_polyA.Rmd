@@ -1,0 +1,182 @@
+---
+title: "Core set poly(A)"
+output: html_notebook
+---
+```{r}
+library(Rsamtools)
+library(GenomicAlignments)
+library(GenomicRanges)
+library(tidyverse)
+library(ggplot2)
+```
+Get the core set of modified genes
+
+```{r}
+positions_mapped_annotated <- read.csv(file = "core_set_m6anet_positions.csv")
+positions_mapped_annotated
+```
+
+Plot for 3' end position change
+```{r}
+#ISTL2
+region_1 <- GRanges(seqnames = "1", ranges = IRanges(start = 8917800, end = 8918300))
+#AGD2
+region_2 <- GRanges(seqnames = "4", ranges = IRanges(start = 16174600, end = 16174700))
+```
+Get bam files
+```{r}
+col0_bam_files <- c("/Volumes/cluster/ggs_lab/mtparker/papers/fiona/fiona_nanopore/pipeline/aligned_data/col0_1.genome.bam",
+               "/Volumes/cluster/ggs_lab/mtparker/papers/fiona/fiona_nanopore/pipeline/aligned_data/col0_2.genome.bam",
+               "/Volumes/cluster/ggs_lab/mtparker/papers/fiona/fiona_nanopore/pipeline/aligned_data/col0_3.genome.bam",
+               "/Volumes/cluster/ggs_lab/mtparker/papers/fiona/fiona_nanopore/pipeline/aligned_data/col0_4.genome.bam")
+vir1_bam_files <- c("/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data/vir1_1.genome.bam",
+               "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data/vir1_2.genome.bam",
+               "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data/vir1_3.genome.bam",
+               "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data/vir1_4.genome.bam")
+fip37_bam_files <- c("/Volumes/cluster/ggs_lab/mtparker/papers/ect2/ect2_nanopore/pipeline/aligned_data/fip37_1.genome.bam",
+               "/Volumes/cluster/ggs_lab/mtparker/papers/ect2/ect2_nanopore/pipeline/aligned_data/fip37_2.genome.bam",
+               "/Volumes/cluster/ggs_lab/mtparker/papers/ect2/ect2_nanopore/pipeline/aligned_data/fip37_4.genome.bam",
+               "/Volumes/cluster/ggs_lab/cmetheringham001/CPSF30_rerun/data/aligned_data/fip37_1.genome.bam",
+               "/Volumes/cluster/ggs_lab/cmetheringham001/CPSF30_rerun/data/aligned_data/fip37_2.genome.bam",
+               "/Volumes/cluster/ggs_lab/cmetheringham001/CPSF30_rerun/data/aligned_data/fip37_3.genome.bam",
+               "/Volumes/cluster/ggs_lab/cmetheringham001/CPSF30_rerun/data/aligned_data/fip37_1.genome.bam")
+flacc_ox_bam_files <- c("/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data/flacc_1a.genome.bam",
+                        "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data/flacc_2.genome.bam",
+                        "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data/flacc_3.genome.bam",
+                        "/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/aligned_data/flacc_4.genome.bam")
+```
+Get ends
+```{r}
+# Function to extract end positions within region
+get_read_ends <- function(bamfile, region) {
+  param <- ScanBamParam(which = region)
+  reads <- readGAlignments(bamfile, param = param)
+  read_ends <- end(reads)
+  # Filter reads that truly end within the region
+  ends_in_region <- read_ends >= start(region) & read_ends <= end(region)
+  return(read_ends[ends_in_region])
+}
+```
+Get table of positions
+```{r}
+get_region_read_end_counts <- function(region) {
+  # Apply get_read_ends to each BAM file set for the given region
+  col0_ends <- unlist(lapply(col0_bam_files, get_read_ends, region = region))
+  vir1_ends <- unlist(lapply(vir1_bam_files, get_read_ends, region = region))
+  fip37_ends <- unlist(lapply(fip37_bam_files, get_read_ends, region = region))
+  flacc_ox_ends <- unlist(lapply(flacc_ox_bam_files, get_read_ends, region = region))
+  
+  # Create count tables
+  col0_table <- as.data.frame(table(col0_ends))
+  colnames(col0_table) <- c("pos", "col0_count")
+  
+  vir1_table <- as.data.frame(table(vir1_ends))
+  colnames(vir1_table) <- c("pos", "vir1_count")
+  
+  fip37_table <- as.data.frame(table(fip37_ends))
+  colnames(fip37_table) <- c("pos", "fip37_count")
+  
+  flacc_ox_table <- as.data.frame(table(flacc_ox_ends))
+  colnames(flacc_ox_table) <- c("pos", "flacc_ox_count")
+  
+  # Merge all tables
+  count_table <- Reduce(function(x, y) merge(x, y, by = "pos", all = TRUE),
+                        list(col0_table, vir1_table, fip37_table, flacc_ox_table))
+  
+  # Convert position to numeric
+  count_table <- count_table %>%
+    mutate(pos = as.numeric(as.character(pos)))
+  
+  return(count_table)
+}
+```
+
+
+Region 1
+```{r}
+#count_table_region1 <- get_region_read_end_counts(region = region_1)
+count_table_region2 <- get_region_read_end_counts(region = region_2)
+```
+```{r}
+# Reshape to long format
+df_long <- count_table_region1 %>%
+  pivot_longer(-pos, names_to = "sample", values_to = "count") %>%
+  drop_na(count)
+
+# Calculate total per sample
+df_long <- df_long %>%
+  mutate(pos = as.numeric(pos)) %>%
+  group_by(sample) %>%
+  mutate(total = sum(count),
+         percent = (count / total) * 100) %>%
+  ungroup()
+
+df_long$sample <- factor(df_long$sample, levels = c("col0_count", "vir1_count", "fip37_count", "flacc_ox_count"))
+```
+
+
+```{r}
+# Define x-axis breaks at positions ending in 0
+x_breaks <- seq(from = range_start, to =range_end, by = 100)
+
+custom_colors.temp <- c(
+    "col0_count" = "#009E73",  
+    "vir1_count" = "#D55E00",
+    "fip37_count" = "#0f9fd5", 
+    "flacc_ox_count" = "#a02c94" 
+)
+
+sample_names <- c(
+  "col0_count" = "Col-0",
+  "vir1_count" = "vir-1",
+  "fip37_count" = "fip37-4",
+  "flacc_ox_count" = "flacc OX"
+)
+```
+
+
+```{r}
+count_plot <- ggplot(df_long, aes(x = pos, y = count, color = sample)) +
+  geom_segment(aes(x = pos, xend = pos, y = 0, yend = count), size = 0.5) +
+  geom_point() +
+  scale_x_continuous(breaks = x_breaks) +
+  scale_color_manual(
+    name = "Condition:", 
+    values = custom_colors.temp,
+    labels = sample_names
+  ) +
+  ggtitle(bquote("3' End Positions of Reads Mapping to " * italic(.(gene_name)))) +
+  labs(
+    x = paste("Position on Chr", Chr, sep = ""),
+    y = "Total Counts"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")  
+
+# Add faceting
+count_plot.facets <- count_plot + facet_grid(sample ~ ., labeller = labeller(sample = sample_names))
+count_plot.facets
+
+```
+
+
+```{r}
+percent_plot <- ggplot(df_long, aes(x = pos, y = percent, color = sample)) +
+  geom_segment(aes(x = pos, xend = pos, y = 0, yend = percent), size = 0.5) +
+  geom_point() +
+    scale_x_continuous(breaks = x_breaks) +
+      scale_color_manual(
+    name = "Condition:", 
+    values = custom_colors.temp,
+    labels = sample_names
+  ) +
+    ggtitle(bquote("3' End Positions of Reads Mapping to " * italic(.(gene_name))))+
+  labs(x = paste("Position on Chr", Chr, sep =""),
+       y = "Percentage of Total Counts") +
+  theme_minimal()+
+  theme(legend.position = "bottom") 
+
+percent_plot.facets <- percent_plot + facet_grid(sample ~ ., labeller = labeller(sample = sample_names))
+percent_plot.facets
+
+```
