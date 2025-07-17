@@ -15,6 +15,28 @@ library(AnnotationDbi)
 library(readxl)
 library(dplyr)
 ```
+Colour palette
+```{r colour bar, echo=FALSE, fig.height=2, fig.width=13}
+palette <- c(
+ # Writers
+  "MTA"     = "#004488",
+  "VIR"  = "#009988",
+  "FIP37"   = "#0077BB",
+  "hiz2-4" = "#AA4499",
+  "hiz2-2"    = "#CCAA22",
+  "HAKAI" = "#556B2F",
+
+  #Readers
+  "ECT"     = "#EE7733",
+  "CPSF30"  = "#DD3377",
+  
+  #Other
+  "U2B"     = "#CC3311",
+  "?"    = "#BBBBBB"
+)
+barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
+```
+
 
 Read in the proteomics data
 ```{r}
@@ -95,7 +117,7 @@ u2b_vs_col02$name[u2b_vs_col02$protein == "AT1G06960"] <- 'U2B\"'
 
 # Define color vector with matching names
 category_colors <- c(
-  'U2B"' = "#D55E00",
+  'U2B"' = "#CC3311",
   "U2_snRNP" = "#CC79A7",
   "splicing_factor" = "#009E73",
   "other_rna_binding" = "#0072B2"
@@ -114,7 +136,7 @@ u2b_vs_col02$colour <- factor(u2b_vs_col02$colour, levels = desired_order)
 plot_u2b_vs_col0 <- ggplot(data = u2b_vs_col02[u2b_vs_col02$U2B>=3,], aes(y=-log10(pval), x=median_logFC, label = name, fill = colour, size = median_av_exprs))+
     geom_point(shape = 21,colour = "white")+
     theme_classic(base_size=15)+
-    geom_text_repel(aes(label=name, hjust=1.2), size = 4, max.overlaps = Inf)+
+    geom_text_repel(aes(label=name, hjust=1.2), size = 6, max.overlaps = Inf)+
     xlab("median logFC")+
     #xlim(-4,12)+
     xlab('Median log2 Fold Change')+
@@ -144,9 +166,17 @@ ggsave(
 
 #HAKAI
 ```{r}
-hakai_vs_col0$colour <- ""
-hakai_vs_col0$colour[hakai_vs_col0$protein %in% writer_complex] <- 1
-hakai_vs_col0$colour[hakai_vs_col0$protein == "AT5G01160"] <- 2
+writer_palette <- c(
+  "MTA"     = "#004488",
+  "MTB"     = "#004488",
+  "VIR"     = "#009988",
+  "FIP37"   = "#0077BB",
+  "HIZ2"  = "#CCAA22",
+  "HAKAI"   = "#556B2F",
+  "HIZ1" = "#CC3311",
+  "mRNA interacting" = "purple"
+)
+
 hakai_vs_col0$name[hakai_vs_col0$protein == "AT5G01160"] <- "HAKAI"
 hakai_vs_col0$name[hakai_vs_col0$protein == "AT3G05680"] <- "VIR"
 hakai_vs_col0$name[hakai_vs_col0$protein == "AT5G53440"] <- "HIZ2"
@@ -154,28 +184,36 @@ hakai_vs_col0$name[hakai_vs_col0$protein == "AT4G10760"] <- "MTA"
 hakai_vs_col0$name[hakai_vs_col0$protein == "AT4G09980"] <- "MTB"
 hakai_vs_col0$name[hakai_vs_col0$protein == "AT3G54170"] <- "FIP37"
 hakai_vs_col0$name[hakai_vs_col0$protein == "AT1G32360"] <- "HIZ1"
-hakai_vs_col0$name[hakai_vs_col0$protein == "AT1G79930"] <- "HSP91"
+hakai_vs_col0$colour <- writer_palette[hakai_vs_col0$name]
+hakai_vs_col0$colour[is.na(hakai_vs_col0$colour)] <- "#B5B5B5"
 
-plot_hakai_vs_col0 <- ggplot(data = hakai_vs_col0[hakai_vs_col0$HAKAI>=3,], aes(y=-log10(pval), x=median_logFC, label = name, fill = colour, size = median_av_exprs))+
-    geom_point(shape = 21,colour = "white")+
-    theme_classic(base_size=15)+
-    geom_text_repel(aes(label=name, hjust=1.2), size = 4, max.overlaps = Inf)+
-    xlab("median logFC")+
-    #xlim(-4,12)+
-    xlab('Log2 Fold Change')+
-    ylab('-Log10 P value')+
-    ggtitle("HAKAI IP")+
-    scale_fill_manual(labels = c("", "mRNA binding"),  values = c("#B5B5B5", "#7f47ca", "#717171"), name="")+
-    theme(legend.position = c(.8, .2))+
-    guides(size = "none", fill = "none")
+plot_hakai_vs_col0 <- ggplot(data = hakai_vs_col0[hakai_vs_col0$HAKAI >= 3,], 
+                             aes(y = -log10(pval), x = median_logFC, label = name, fill = colour, size = median_av_exprs)) +
+  geom_point(shape = 21, colour = "white") +
+  theme_classic(base_size = 15) +
+  geom_text_repel(aes(label = name, hjust = 1.2), size = 4, max.overlaps = Inf) +
+  xlab('Median log2 Fold Change') +
+  ylab('-Log10 p value') +
+  ggtitle("HAKAI IP") +
+  scale_fill_identity(guide = "none") +
+  theme(legend.position = "none") +
+  guides(size = "none", colour = "none")
 
 plot_hakai_vs_col0
+
+ggsave(
+  filename = "../../Figures/figure_1/hakai_vs_col0_ip.pdf",
+  plot = plot_hakai_vs_col0,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_1/hakai_vs_col0_ip.png",
+  plot = plot_hakai_vs_col0,
+  width = 6, height = 5, units = "in" 
+)
 ```
 #MTA
 ```{r}
-mta_vs_col0$colour <- ""
-mta_vs_col0$colour[mta_vs_col0$protein %in% writer_complex] <- 1
-mta_vs_col0$colour[mta_vs_col0$protein == "AT4G10760"] <- 2
 mta_vs_col0$name[mta_vs_col0$protein == "AT5G01160"] <- "HAKAI"
 mta_vs_col0$name[mta_vs_col0$protein == "AT3G05680"] <- "VIR"
 mta_vs_col0$name[mta_vs_col0$protein == "AT5G53440"] <- "HIZ2"
@@ -183,28 +221,39 @@ mta_vs_col0$name[mta_vs_col0$protein == "AT4G10760"] <- "MTA"
 mta_vs_col0$name[mta_vs_col0$protein == "AT4G09980"] <- "MTB"
 mta_vs_col0$name[mta_vs_col0$protein == "AT3G54170"] <- "FIP37"
 mta_vs_col0$name[mta_vs_col0$protein == "AT1G32360"] <- "HIZ1"
-mta_vs_col0$name[mta_vs_col0$protein == "AT3G44110"] <- "ATJ"
+
+mta_vs_col0$colour <- writer_palette[mta_vs_col0$name]
+mta_vs_col0$colour[is.na(mta_vs_col0$colour)] <- "#B5B5B5"
 
 plot_mta_vs_col0 <- ggplot(data = mta_vs_col0[mta_vs_col0$MTA>=3,], aes(y=-log10(pval), x=median_logFC, label = name, fill = colour, size = median_av_exprs))+
-    geom_point(shape = 21,colour = "white")+
-    theme_classic(base_size=15)+
-    geom_text_repel(aes(label=name, hjust=1.2), size = 4, max.overlaps = Inf)+
-    xlab("median logFC")+
-    #xlim(-4,12)+
-    xlab('Log2 Fold Change')+
-    ylab('-Log10 P value')+
-    ggtitle("MTA IP")+
-    scale_fill_manual(labels = c("", "mRNA binding"),  values = c("#B5B5B5", "#7f47ca", "#717171"), name="")+
-    theme(legend.position = c(.8, .2))+
-    guides(size = "none", fill = "none")
+  geom_point(shape = 21, colour = "white") +
+  theme_classic(base_size = 15) +
+  geom_text_repel(aes(label = name, hjust = 1.3), size = 4, max.overlaps = Inf) +
+  xlab('Median log2 Fold Change') +
+  ylab('-Log10 p value') +
+  ggtitle("MTA vs Col0 IP") +
+  scale_fill_identity(guide = "none") +
+  theme(legend.position = "none") +
+  guides(size = "none", colour = "none")
 
 plot_mta_vs_col0
+
+ggsave(
+  filename = "../../Figures/figure_1/mta_vs_col0_ip.pdf",
+  plot = plot_mta_vs_col0,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_1/mta_vs_col0_ip.png",
+  plot = plot_mta_vs_col0,
+  width = 6, height = 5, units = "in" 
+)
 ```
 #VIR
+
 ```{r}
-vir1_vs_col0$colour <- ""
-vir1_vs_col0$colour[vir1_vs_col0$protein %in% mrna_interacting$protein] <- 1
-vir1_vs_col0$colour[vir1_vs_col0$protein == "AT3G05680"] <- 2
+vir1_vs_col0$name <- NA_character_
+vir1_vs_col0$name[vir1_vs_col0$protein %in% mrna_interacting$protein] <- "mRNA interacting"
 vir1_vs_col0$name[vir1_vs_col0$protein == "AT5G01160"] <- "HAKAI"
 vir1_vs_col0$name[vir1_vs_col0$protein == "AT3G05680"] <- "VIR"
 vir1_vs_col0$name[vir1_vs_col0$protein == "AT5G53440"] <- "HIZ2"
@@ -212,22 +261,58 @@ vir1_vs_col0$name[vir1_vs_col0$protein == "AT4G10760"] <- "MTA"
 vir1_vs_col0$name[vir1_vs_col0$protein == "AT4G09980"] <- "MTB"
 vir1_vs_col0$name[vir1_vs_col0$protein == "AT3G54170"] <- "FIP37"
 vir1_vs_col0$name[vir1_vs_col0$protein == "AT1G32360"] <- "HIZ1"
-vir1_vs_col0$name[vir1_vs_col0$protein == "AT3G44110"] <- "ATJ"
 
-plot_vir1_vs_col0 <- ggplot(data = vir1_vs_col0[vir1_vs_col0$VIR>=3,], aes(y=-log10(pval), x=median_logFC, label = name, fill = colour, size = median_av_exprs))+
-    geom_point(shape = 21,colour = "white")+
-    theme_classic(base_size=15)+
-    geom_text_repel(aes(label=name, hjust=1.2), size = 4, max.overlaps = Inf)+
-    xlab("median logFC")+
-    #xlim(-4,12)+
-    xlab('Log2 Fold Change')+
-    ylab('-Log10 P value')+
-    ggtitle("VIR IP")+
-    scale_fill_manual(labels = c("", "mRNA binding"),  values = c("#B5B5B5", "#7f47ca", "#717171"), name="")+
-    theme(legend.position = c(.8, .2))+
-    guides(size = "none", fill = "none")
+# Define palette with purple for mRNA interacting
+writer_palette_extended <- c(
+  writer_palette,
+  "mRNA interacting" = "#7f47ca"  
+)
+
+# Assign colours based on name, default grey if missing
+vir1_vs_col0$colour <- writer_palette_extended[vir1_vs_col0$name]
+vir1_vs_col0$colour[is.na(vir1_vs_col0$colour)] <- "#B5B5B5"
+
+# Create a logical to label only non-mRNA interacting proteins
+vir1_vs_col0$label_plot <- ifelse(vir1_vs_col0$name == "mRNA interacting", NA, vir1_vs_col0$name)
+
+# Plot
+plot_vir1_vs_col0 <- ggplot(data = vir1_vs_col0[vir1_vs_col0$VIR >= 3,], 
+                            aes(y = -log10(pval), x = median_logFC, label = label_plot, fill = colour, size = median_av_exprs)) +
+  geom_point(shape = 21, colour = "white") +
+  theme_classic(base_size = 15) +
+  geom_text_repel(aes(label = label_plot, hjust = 1.3), size = 4, max.overlaps = Inf, na.rm = TRUE) +
+  xlab('Median log2 Fold Change') +
+  ylab('-Log10 p value') +
+  ggtitle("VIR vs Col0 IP") +
+  scale_fill_identity(
+    guide = "legend",
+    breaks = "#7f47ca",
+    labels = "mRNA interacting",
+    name = ""
+  ) +
+  theme(legend.position = c(0.8, 0.2)) +
+  guides(size = "none", colour = "none")+
+  # Add purple dot as key 
+  annotate("point", x = max(vir1_vs_col0$median_logFC, na.rm = TRUE) * 0.6, 
+                     y = max(-log10(vir1_vs_col0$pval), na.rm = TRUE) * 0.1,
+                     colour = "#7f47ca", size = 3, shape = 21, fill = "#7f47ca") +
+  # Add text label next to the dot
+  annotate("text", x = max(vir1_vs_col0$median_logFC, na.rm = TRUE) * 0.65,
+                   y = max(-log10(vir1_vs_col0$pval), na.rm = TRUE) * 0.1,
+                   label = "mRNA interacting", hjust = 0, size = 4)
 
 plot_vir1_vs_col0
+
+ggsave(
+  filename = "../../Figures/figure_1/vir_vs_col0_ip.pdf",
+  plot = plot_vir1_vs_col0,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_1/vir_vs_col0_ip.png",
+  plot = plot_vir1_vs_col0,
+  width = 6, height = 5, units = "in" 
+)
 ```
 
 Overlaps between the 3 sets
@@ -235,7 +320,7 @@ Overlaps between the 3 sets
 mta <- mta_vs_col0[pval < 0.05 & median_logFC > 1 & MTA>=3, protein]
 vir1 <- vir1_vs_col0[pval < 0.05 & median_logFC > 1 & VIR>=3, protein]
 hakai <- hakai_vs_col0[pval < 0.05 & median_logFC > 1 & HAKAI>=3, protein]
-u2b <- u2b_vs_col0[pval < 0.05 & median_logFC > 1 & HAKAI>=3, protein]
+u2b <- u2b_vs_col0[pval < 0.05 & median_logFC > 1 & U2B>=3, protein]
 
 venn_list <- euler(list(
   MTA = mta,
@@ -243,12 +328,26 @@ venn_list <- euler(list(
   HAKAI = hakai
 ))
 
-plot(venn_list,
-     fills = list(fill = c("#FF6666", "#66CC99", "#6699CC"), alpha = 0.7),
-     labels = list(font = 2),
+venn_plot <- plot(venn_list,
+     fills = list(fill = c("#004488", "#009988", "#556B2F"), alpha = 0.7),
+     labels = list(font = 2, cex = 1.2),
+     edges = TRUE,
      quantities = TRUE)
-```
 
+venn_plot
+
+ggsave(
+  filename = "../../Figures/figure_1/mta_vir_hakai_overlap.pdf",
+  plot = venn_plot,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_1/mta_vir_hakai_overlap.png",
+  plot = venn_plot,
+  width = 6, height = 5, units = "in" 
+)
+```
+The 5 proteins in the overlap are HIZ1, VIR, FIP37, MTA and HAKAI
 
 ```{r}
 all_proteins <- unique(c(mta, vir1, hakai))
@@ -282,8 +381,42 @@ head(overlap_dt)
 write_csv(overlap_dt, file = "protein_overlap.csv")
 ```
 Overlap between VIR and U2B
+```{r}
+venn_list <- euler(list(
+  U2B = u2b,
+  VIR = vir1
+))
 
-These are: HIZ1, VIR, FIP37, MTA and HAKAI
+plot(venn_list,
+     fills = list(fill = c("#D55E00", "#66CC99"), alpha = 0.7),
+     labels = list(font = 2),
+     quantities = TRUE)
+
+all_proteins <- unique(c(vir1, u2b))
+
+overlap_dt2 <- data.table(
+  protein = all_proteins,
+  U2B = all_proteins %in% u2b,
+  VIR = all_proteins %in% vir1
+)
+# Get mappings
+gene_names <- AnnotationDbi::select(org.At.tair.db,
+                                    keys = overlap_dt2$protein,
+                                    columns = c("SYMBOL"),
+                                    keytype = "TAIR")
+
+# Merge
+overlap_dt2 <- merge(overlap_dt2, gene_names, by.x = "protein", by.y = "TAIR", all.x = TRUE)
+overlap_dt2 <- overlap_dt2[, .(
+  SYMBOL = paste(unique(SYMBOL), collapse = ",")
+), by = .(protein, U2B, VIR)]
+# Subset proteins in all three
+overlap_dt2[U2B & VIR]
+write_csv(overlap_dt2, file = "../../Proteomics/u2b_vir_overlap.csv")
+```
+
+
+
 
 #MTA in HAKAI
 ```{r}
@@ -301,7 +434,7 @@ mta_vs_mtahakai$name[mta_vs_mtahakai$protein == "AT1G32360"] <- "HIZ1"
 plot_mta_vs_mtahakai <- ggplot(data = mta_vs_mtahakai[mta_vs_mtahakai$MTA>=3,], aes(y=-log10(pval), x=median_logFC, label = name, fill = colour, size = median_av_exprs))+
     geom_point(shape = 21,colour = "white")+
     theme_classic(base_size=15)+
-    geom_text_repel(aes(label=name, hjust=1.2), size = 4, max.overlaps = Inf)+
+    geom_text_repel(aes(label=name, hjust=1.2), size = 6, max.overlaps = Inf)+
     xlab("median logFC")+
     #xlim(-4,12)+
     xlab('Log2 Fold Change')+
@@ -320,7 +453,7 @@ Ect plots
 plot_A <- ggplot(data = prot_res_ect[prot_res_ect$ECT2>=3,], aes(y=-log10(pval), x=median_logFC, label = name, fill=rna, size = median_av_exprs))+
     geom_point(shape = 21,colour = "white")+
     theme_classic(base_size=15)+
-    geom_text_repel(aes(label=name, hjust=1.2), size = 4, max.overlaps = Inf)+
+    geom_text_repel(aes(label=name, hjust=1.2), size = 6, max.overlaps = Inf)+
     xlab("median logFC")+
     xlim(-4,12)+
     xlab('Log2 Fold Change')+
