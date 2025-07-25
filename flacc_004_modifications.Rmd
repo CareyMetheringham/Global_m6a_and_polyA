@@ -7,6 +7,7 @@ library(ggplot2)
 library(dplyr)
 library(FSA)
 library(ggbeeswarm)
+library(stringr)
 ```
 ```{r colour bar, echo=FALSE, fig.height=2, fig.width=13}
 palette <- c(
@@ -26,7 +27,12 @@ palette <- c(
 )
 barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
 ```
-
+Load genome and annotation
+```{r}
+At.genome <- Rsamtools::FaFile("/Volumes/cluster/ggs_lab/cmetheringham001/Shared_Ref/TAIR10_chr_all.fas")
+# Load TxDb
+txdb <- makeTxDbFromGFF("/Volumes/cluster/ggs_lab/cmetheringham001/Shared_Ref/Araport11_GFF3_genes_transposons.201606.no_chr.gtf")
+```
 Plot the proportion of A in DRACH motifs
 ```{r}
 drach_summary <- data.frame(geno = c(rep("Col0", 4), rep("flacc_mutant", 4), rep("flacc_ox", 4)),
@@ -34,24 +40,7 @@ drach_summary <- data.frame(geno = c(rep("Col0", 4), rep("flacc_mutant", 4), rep
                                      0.0090, 0.0060, 0.0066, 0.0069,
                                      0.0531, 0.0508, 0.0524, 0.0529))
 ```
-Plot a boxplot
-```{r}
-# Define custom colors for each genotype
-geno_colors <- c("Col0" = "chartreuse4", "flacc_mutant" = "darkorange", "flacc_ox" = "slateblue")
-
-# Define custom shapes (optional)
-geno_shapes <- c("Col0" = 16, "flacc_mutant" = 17, "flacc_ox" = 18)  # Different shapes for clarity
-
-summary_plot <- ggplot(data = drach_summary, aes(group = geno, colour = geno, y = prop, x = geno, shape = geno)) +
-    geom_point(size = 3) +
-    scale_color_manual(values = geno_colors) +  # Set custom colors
-    scale_shape_manual(values = geno_shapes) +  # Set custom shapes
-    labs(x = "Genotype", y = "Modified DRACH proportion", colour = "Genotype", shape = "Genotype") +  # Custom labels
-    theme_classic() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))  
-summary_plot
-```
-Plot in same style as LC-MS/MS
+Plot in same style as LC-MS/MS plot
 ```{r}
 custom_colors <- c("Col0" = "black", "flacc_mutant" = "#CCAA22", "flacc_ox" = "#AA4499")
 custom_shapes <- c("Col0" = 16, "flacc_mutant" = 15, "flacc_ox" = 18)
@@ -127,7 +116,25 @@ Modifications on a per site basis
 ```{r}
 flacc_mutant_1 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_mutant_1.bed", header=FALSE)
 flacc_mutant_2 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_mutant_2.bed", header=FALSE)
-colnames(flacc_mutant_2) <- c(
+flacc_mutant_3 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_mutant_3.bed", header=FALSE)
+flacc_mutant_4 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_mutant_4.bed", header=FALSE)
+```
+
+```{r}
+flacc_OX_1 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_OX_1.bed", header=FALSE)
+flacc_OX_2 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_OX_2.bed", header=FALSE)
+flacc_OX_3 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_OX_3.bed", header=FALSE)
+flacc_OX_4 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_OX_4.bed", header=FALSE)
+```
+```{r}
+col0_1 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/col0_1.bed", header=FALSE)
+col0_2 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/col0_2.bed", header=FALSE)
+col0_3 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/col0_3.bed", header=FALSE)
+col0_4 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/col0_4.bed", header=FALSE)
+```
+Get colnames
+```{r}
+bed_colnames <- c(
   "chrom",
   "start",
   "end",
@@ -147,9 +154,290 @@ colnames(flacc_mutant_2) <- c(
   "Ndiff",
   "Nnocall"
 )
+set_colnames <- function(df_list, new_colnames) {
+  lapply(df_list, function(df) {
+    colnames(df) <- new_colnames
+    return(df)
+  })
+}
 ```
+Make list and rename
+```{r}
+bed_list <- list(
+  col0_1 = col0_1,
+  col0_2 = col0_2,
+  col0_3 = col0_3,
+  col0_4 = col0_4,
+  flacc_mutant_1 = flacc_mutant_1,
+  flacc_mutant_2 = flacc_mutant_2,
+  flacc_mutant_3 = flacc_mutant_3,
+  flacc_mutant_4 = flacc_mutant_4,
+  flacc_OX_1 = flacc_OX_1,
+  flacc_OX_2 = flacc_OX_2,
+  flacc_OX_3 = flacc_OX_3,
+  flacc_OX_4 = flacc_OX_4
+)
+bed_list <- set_colnames(bed_list, bed_colnames)
+```
+
+Filter the sites
+```{r}
+filter_modification_tables <- function(df_list, min_percent = 0.01, min_coverage = 20) {
+  filtered_list <- lapply(names(df_list), function(name) {
+    df <- df_list[[name]]
+    df_filtered <- df[df$percent_modified > min_percent & df$Nvalid_cov >= min_coverage, ]
+    return(df_filtered)
+  })
+  names(filtered_list) <- paste0(names(df_list), ".filtered")
+  return(filtered_list)
+}
+filtered_bed_tables <- filter_modification_tables(bed_list)
+```
+
+Where are these sites located?
+```{r}
+# Extract UTRs
+five_utrs <- fiveUTRsByTranscript(txdb, use.names=TRUE)
+three_utrs <- threeUTRsByTranscript(txdb, use.names=TRUE)
+# Flatten into GRanges
+five_utrs_flat <- unlist(five_utrs, use.names=FALSE)
+three_utrs_flat <- unlist(three_utrs, use.names=FALSE)
+five_utrs_flat$region_type <- "5UTR"
+three_utrs_flat$region_type <- "3UTR"
+# Combine 5' and 3' UTRs into one GRanges
+utr_regions <- c(five_utrs_flat, three_utrs_flat)
+```
+Annotate with UTR
+```{r}
+annotate_with_UTRs <- function(df_list, utr_regions) {
+  annotated_list <- lapply(names(df_list), function(name) {
+    df <- df_list[[name]]
+    # Create GRanges object from the input table
+    data_gr <- GRanges(
+      seqnames = df$chrom,
+      ranges = IRanges(start = df$start, end = df$end),
+      strand = df$strand,
+      transcript_id = df$name
+    )
+    # Find overlaps with UTR regions
+    hits <- findOverlaps(data_gr, utr_regions, ignore.strand = FALSE)
+    # Annotate with UTR region type
+    utr_annotation <- rep(NA_character_, length(data_gr))
+    utr_annotation[queryHits(hits)] <- mcols(utr_regions)$region_type[subjectHits(hits)]
+    # Add UTR_type column to data frame
+    annotated_df <- df %>%
+      mutate(UTR_type = utr_annotation)
+    return(annotated_df)
+  })
+  # Name output list with ".annotated" suffix
+  names(annotated_list) <- paste0(names(df_list), ".annotated")
+  return(annotated_list)
+}
+annotated_filtered_bed_tables <- annotate_with_UTRs(filtered_bed_tables, utr_regions)
+```
+Summarise the UTR types
+```{r}
+summarise_utr_percentages <- function(df_list) {
+  utr_summary <- lapply(names(df_list), function(name) {
+    df <- df_list[[name]]
+    # Check
+    if (!"UTR_type" %in% colnames(df)) {
+      return(data.frame(File = name, UTR_type = NA, Percent = NA))
+    }
+    # Tabulate and calculate percentages
+    total <- nrow(df)
+    tab <- prop.table(table(df$UTR_type)) * 100  
+    df_tab <- as.data.frame(tab)
+    colnames(df_tab) <- c("UTR_type", "Percent")
+    df_tab$File <- name
+    return(df_tab)
+  })
+  # Combine into data frame
+  do.call(rbind, utr_summary) %>%
+    dplyr::select(File, UTR_type, Percent)
+}
+utr_percent_table <- summarise_utr_percentages(annotated_filtered_bed_tables)
+range(utr_percent_table$Percent[utr_percent_table$UTR_type=="3UTR"])
+range(utr_percent_table$Percent[utr_percent_table$UTR_type=="5UTR"])
+```
+
+How do these sites overlap with 002 results?
+```{r}
+hiz2_4_diff_err <- fread("/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/differr/flacc_vs_col0.bed")
+colnames(hiz2_4_diff_err) <- c("chrom", "start", "end", "name", "score", "strand", "odds", "G", "P", "FDR", "g_hom", "P_hom", "g_hom_c", "P_hom_c")
+vir1_diff_err <- fread("/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_nanopore/pipeline/differr/vir1_vs_VIRc.bed")
+colnames(vir1_diff_err) <- c("chrom", "start", "end", "name", "score", "strand", "odds", "G", "P", "FDR", "g_hom", "P_hom", "g_hom_c", "P_hom_c")
+head(hiz2_4_diff_err)
+```
+Calculate overlaps
+```{r}
+calculate_overlap_proportion <- function(df_list, gr1_source, maxgap = 5, ignore_strand = FALSE) {
+  # Create gr1 from the fixed input
+  gr1 <- GRanges(
+    seqnames = gr1_source$chrom,
+    ranges = IRanges(start = gr1_source$start, end = gr1_source$end),
+    strand = gr1_source$strand
+  )
+  total <- length(gr1)
+  proportions <- sapply(names(df_list), function(name) {
+    df <- df_list[[name]]
+    gr2 <- GRanges(
+      seqnames = df$chrom,
+      ranges = IRanges(start = df$start, end = df$end),
+      strand = df$strand
+    )
+    hits <- findOverlaps(gr1, gr2, maxgap = maxgap, ignore.strand = ignore_strand)
+    n_hits <- length(unique(queryHits(hits)))
+    return(n_hits / total)
+  })
+  return(proportions)
+}
+```
+
+Number of flacc diff_err sites which were modified in the new data
+```{r}
+hiz2_overlap_props <- calculate_overlap_proportion(filtered_bed_tables, hiz2_4_diff_err)
+hiz2_overlap_props
+vir1_overlap_props <- calculate_overlap_proportion(filtered_bed_tables, vir1_diff_err)
+vir1_overlap_props
+```
+Make a summary table
+```{r}
+summarise_table_list <- function(df_list) {
+  key_cols <- c("chrom", "start", "end", "mod_code_motif", "score", "strand")
+  
+  processed_list <- lapply(names(df_list), function(name) {
+    df <- df_list[[name]]
+    
+    # Trim the table name
+    short_name <- str_remove(name, "\\.filtered.*")  # removes ".filtered.annotated" etc
+    
+    df %>%
+      dplyr::select(all_of(c(key_cols, "Nvalid_cov", "percent_modified"))) %>%
+      rename(
+        !!paste0(short_name, ".Nvalid_cov") := Nvalid_cov,
+        !!paste0(short_name, ".percent_modified") := percent_modified
+      )
+  })
+  
+  # Merge all tables by the key columns
+  merged_df <- Reduce(function(x, y) full_join(x, y, by = key_cols), processed_list)
+  
+  return(merged_df)
+}
+summary_table <- summarise_table_list(bed_list)
+head(summary_table)
+```
+Compute the per site means
+```{r}
+summary_table_means <- summary_table %>%
+  mutate(
+    # Mean across ALL Nvalid_cov columns
+    mean_Nvalid_cov = rowMeans(dplyr::select(., ends_with(".Nvalid_cov")), na.rm = TRUE),
+    # Mean across ALL percent_modified columns
+    mean_percent_modified = rowMeans(dplyr::select(., ends_with(".percent_modified")), na.rm = TRUE),
+    # Grouped means for col0
+    mean_Nvalid_cov_col0 = rowMeans(dplyr::select(., starts_with("col0") & ends_with(".Nvalid_cov")), na.rm = TRUE),
+    mean_percent_modified_col0 = rowMeans(dplyr::select(., starts_with("col0") & ends_with(".percent_modified")), na.rm = TRUE),
+    # Grouped means for flacc_mutant
+    mean_Nvalid_cov_mutant = rowMeans(dplyr::select(., starts_with("flacc_mutant") & ends_with(".Nvalid_cov")), na.rm = TRUE),
+    mean_percent_modified_mutant = rowMeans(dplyr::select(., starts_with("flacc_mutant") & ends_with(".percent_modified")), na.rm = TRUE),
+    # Grouped means for flacc_OX
+    mean_Nvalid_cov_OX = rowMeans(dplyr::select(., starts_with("flacc_OX") & ends_with(".Nvalid_cov")), na.rm = TRUE),
+    mean_percent_modified_OX = rowMeans(dplyr::select(., starts_with("flacc_OX") & ends_with(".percent_modified")), na.rm = TRUE)
+  )
+head(summary_table_means)
+```
+Filter the table by the mean coverage
+```{r}
+summary_table_means.filtered <- summary_table_means[summary_table_means$mean_Nvalid_cov>=20,]
+# write to table
+write_csv(summary_table_means.filtered, file = "flacc004_modifications.csv")
+```
+Plot the comparison of the mean percentage modified Col-0 and hiz2-2
+```{r}
+t.test(summary_table_means.filtered$mean_percent_modified_col0, summary_table_means.filtered$mean_percent_modified_mutant, conf.level = 0.95)
+t.test(summary_table_means.filtered$mean_percent_modified_col0, summary_table_means.filtered$mean_percent_modified_OX, conf.level = 0.95)
+```
+Plot the comparison of the mean percentage modified Col-0 and hiz2-4
+```{r}
+df2 <- summary_table_means.filtered
+# Create a factor with three levels: "higher", "lower", "equal"
+df2$comparison <- with(df2, 
+  ifelse(mean_percent_modified_col0 < mean_percent_modified_mutant, "higher",
+  ifelse(mean_percent_modified_col0 > mean_percent_modified_mutant, "lower", "equal"))
+)
+# Calculate percentages for each group
+pct_table <- prop.table(table(df2$comparison)) * 100
+pct_table
+
+df2$higher_in_x <- df2$mean_percent_modified_col0 < df2$mean_percent_modified_mutant
+
+ggplot(df2, aes(x = mean_percent_modified_col0,
+               y = mean_percent_modified_mutant,
+               color = higher_in_x,
+               size = mean_Nvalid_cov)) +
+  geom_point(alpha = 0.8, show.legend = TRUE) +  
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+  scale_color_manual(values = c("FALSE" = "#AA4499", "TRUE" = "grey50")) +
+  scale_size_continuous(range = c(1, 5)) +
+  theme_minimal(base_size = 10) +
+  labs(
+    x = "Mean % Modified (Col-0)",
+    y = "Mean % Modified (hiz2-4)",
+    size = "Mean Valid Coverage"
+  ) +
+  theme(
+    legend.position = "top",
+    panel.grid.minor = element_blank(),
+    legend.bmutant = "horizontal"
+  ) +
+  guides(
+    color = "none",          
+    size = guide_legend(nrow = 1)
+  ) 
+```
+
+Plot the comparison of the mean percentage modified Col-0 and hiz2-4
+```{r}
+df <- summary_table_means.filtered
+# Create a factor with three levels: "higher", "lower", "equal"
+df$comparison <- with(df, 
+  ifelse(mean_percent_modified_col0 < mean_percent_modified_OX, "higher",
+  ifelse(mean_percent_modified_col0 > mean_percent_modified_OX, "lower", "equal"))
+)
+# Calculate percentages for each group
+pct_table <- prop.table(table(df$comparison)) * 100
+pct_table
+
+df$higher_in_x <- df$mean_percent_modified_col0 < df$mean_percent_modified_OX
+
+ggplot(df, aes(x = mean_percent_modified_col0,
+               y = mean_percent_modified_OX,
+               color = higher_in_x,
+               size = mean_Nvalid_cov)) +
+  geom_point(alpha = 0.8, show.legend = TRUE) +  
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+  scale_color_manual(values = c("TRUE" = "#CCAA22", "FALSE" = "grey50")) +
+  scale_size_continuous(range = c(1, 5)) +
+  theme_minimal(base_size = 10) +
+  labs(
+    x = "Mean % Modified (Col-0)",
+    y = "Mean % Modified (hiz2-4)",
+    size = "Mean Valid Coverage"
+  ) +
+  theme(
+    legend.position = "top",
+    panel.grid.minor = element_blank(),
+    legend.box = "horizontal"
+  ) +
+  guides(
+    color = "none",          
+    size = guide_legend(nrow = 1)
+  ) 
+```
+
 
 ```{r}
-
+t.test(summary_table_means.filtered$mean_percent_modified_col0, summary_table_means.filtered$mean_percent_modified_OX, conf.level = 0.95)
 ```
-

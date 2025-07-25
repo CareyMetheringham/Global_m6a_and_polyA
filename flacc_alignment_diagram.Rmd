@@ -230,94 +230,23 @@ for (i in seq_along(bam_paths)) {
   )
   total_height <- total_height + length(reads) + 2
 }
-
-plot(NA, xlim = c(from, to), ylim = c(0, total_height + 10),
-     xlab = "Genomic Position", ylab = "",
-     main = "Alignment of reads to HIZ2",
-     yaxt = "n",  # suppress y axis
-     cex.main = 1.3, cex.lab = 1.1)
-
-# Add light vertical grid lines every ~1000 bases
-#abline(v = seq(from, to, by = 1000), col = "#888888", lty = "dotted")
-
-for (i in seq_along(read_blocks)) {
-  rb <- read_blocks[[i]]
-  reads <- rb$reads
-  y_offset <- rb$y_start - 1
-  col_normal <- colors[(i - 1) %% length(colors) + 1]
-
-# Filter to keep only reads NOT on the positive strand
-  keep_idx <- which(as.character(strand(reads)) == "-")
-  reads <- reads[keep_idx]
-  
-  # Recalculate exon blocks only for filtered reads
-  exon_blocks <- cigarRangesAlongReferenceSpace(cigar(reads), pos = start(reads),
-                                               ops = "M", with.ops = FALSE)
-
-for (j in seq_along(reads)) {
-  y <- y_offset + j
-  blocks <- exon_blocks[[j]]
-  for (k in seq_along(blocks)) {
-    segments(start(blocks[k]), y, end(blocks[k]), y, col = col_normal, lwd = 1.5)
-  }
-}
-  
-  # Sample name on left, aligned nicely with some margin space
-  text(from - 500, y_offset + length(reads) / 2, labels = names(bam_paths)[i], pos = 2, cex = 0.9)
-}
-
-# Add T-DNA insertion marker
-insertion_site <- 21683920
-abline(v = insertion_site, col = "darkred", lty = 2, lwd = 1)
-text(insertion_site, total_height + 4, "T-DNA", col = "darkred", pos = 2)
-insertion_site <- 21687450
-abline(v = insertion_site, col = "darkred", lty = 2, lwd = 1)
-text(insertion_site, total_height + 4, "T-DNA", col = "darkred", pos = 2)
-```
-```{r}
-plot(NA, xlim = c(to, from), ylim = c(0, total_height + 10),
-     xlab = "Genomic Position", ylab = "",
-     main = "Alignment of reads to HIZ2",
-     yaxt = "n",  # suppress y axis
-     cex.main = 1.3, cex.lab = 1.1)
-
-# Sample plotting code unchanged:
-for (i in seq_along(read_blocks)) {
-  rb <- read_blocks[[i]]
-  reads <- rb$reads
-  y_offset <- rb$y_start - 1
-  col_normal <- colors[(i - 1) %% length(colors) + 1]
-
-  for (j in seq_along(reads)) {
-    segments(start(reads[j]), y_offset + j, end(reads[j]), y_offset + j, col = col_normal, lwd = 1.5)
-  }
-  
-  # Sample name on left, aligned nicely with some margin space
-  #text(from - 500, y_offset + length(reads) / 2, labels = names(bam_paths)[i], pos = 2, cex = 0.9)
-}
-
-# T-DNA insertion markers:
-abline(v = c(21683920, 21687450), col = "darkred", lty = 2, lwd = 1)
-text(21683920, total_height + 4, "T-DNA", col = "darkred", pos = 2)
-text(21687450, total_height + 4, "T-DNA", col = "darkred", pos = 2)
 ```
 
 ```{r}
-pdf("../../Figures/figure_2/new_flacc_read_plot.pdf", width = 8, height = 6)  # adjust size as needed
+pdf("../../Figures/figure_2/new_flacc_read_plot.pdf", width = 8, height = 6)  
 
 layout(matrix(1:2, nrow = 2), heights = c(5, 2))
-# Set outer margins
+# Set  margins
 par(oma = c(1, 1, 1, 1))  # outer margins: bottom, left, top, right
 par(mar = c(0.5, 1.5, 1, 0.5))  # inner margins: bottom, left, top, right
 
-# ---- Top plot: your read alignments ----
 plot(NA, xlim = c(to, from), ylim = c(0, total_height + 10),
      xlab = "", ylab = "",
      main = "Alignment of reads to HIZ2",
      yaxt = "n", xaxt = "n",  
      cex.main = 1.3, cex.lab = 1.1)
 
-# Draw alignments as before
+# Draw alignments
 for (i in seq_along(read_blocks)) {
   rb <- read_blocks[[i]]
   reads <- rb$reads
@@ -346,7 +275,7 @@ abline(v = c(21683920, 21687450), col = "darkred", lty = 2, lwd = 1)
 text(21683920, total_height + 4, "T-DNA", col = "darkred", pos = 2)
 text(21687450, total_height + 4, "T-DNA", col = "darkred", pos = 2)
 
-# ---- Bottom plot: gene model schematic ----
+#Bottom plot: Gene model schematic
 par(mar = c(2.5, 1.5, 0.5, 0.5))
 plot(NA, xlim = c(to, from), ylim = c(0, 1), xaxt = "n", yaxt = "n", xlab = "Genomic Position (kb)", ylab = "", bty = "n")
 
@@ -355,7 +284,7 @@ for (i in seq_len(nrow(exons))) {
   rect(exons$start[i], 0.3, exons$end[i], 0.7, col = "black", border = NA)
 }
 
-# Draw 3' UTR as a different colored rectangle
+# Draw 3' UTR as a grey rectangle
 rect(utr3$start, 0.3, utr3$end, 0.7, col = "#666666", border = NA)
 
 # Draw introns as lines connecting exons
@@ -363,14 +292,12 @@ for (i in seq_len(nrow(exons)-1)) {
   segments(exons$end[i], 0.5, exons$start[i+1], 0.5, col = "black", lwd = 2)
 }
 
-# Optional: add legend or text labels
+# Add legend or text labels
 text(x = mean(c(from, to)), y = 0.9, labels = "", cex = 0.8)
-
-# Automatically determine suitable tick positions
-ticks <- pretty(c(to, from), n = 5)  # adjust 'n' to control how many ticks
-
-# Format tick labels in Mb, rounded to 2 decimal places
-labels <- format(round(ticks / 1e6, 2), nsmall = 2)
+# Ticks
+ticks <- pretty(c(to, from), n = 5) 
+# Format tick labels in Mb, rounded to 3 decimal places
+labels <- format(round(ticks / 1e6, 3), nsmall = 3)
 
 # Add x-axis with formatted labels
 axis(1, at = ticks, labels = labels, las = 1, cex.axis = 0.8)
