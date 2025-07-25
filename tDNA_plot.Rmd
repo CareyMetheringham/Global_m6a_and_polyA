@@ -1,0 +1,35 @@
+---
+title: "tDNA Diagram"
+---
+
+```{r}
+library(Rsamtools)
+library(GenomicAlignments)
+library(GenomicRanges)
+library(ggplot2)
+```
+
+
+```{r}
+# Set file path
+bam_file <- "/Volumes/cluster/ggs_lab/cmetheringham001/FLACC/tdna.sorted.bam"
+
+# Read alignments
+galn <- readGAlignments(bam_file)
+
+# Compute coverage & convert to data frame
+cov <- coverage(galn)[[1]]  
+df <- data.frame(pos = start(cov), coverage = as.numeric(cov))
+```
+
+
+```{r}
+# Plot
+ggplot(df, aes(x = pos, y = coverage)) +
+  geom_line(color = "steelblue") +
+  labs(title = "Read coverage over T-DNA",
+       x = "Position (bp)",
+       y = "Read depth") +
+  theme_minimal()
+```
+

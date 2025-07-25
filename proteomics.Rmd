@@ -25,14 +25,12 @@ palette <- c(
   "hiz2-4" = "#AA4499",
   "hiz2-2"    = "#CCAA22",
   "HAKAI" = "#556B2F",
-
   #Readers
   "ECT"     = "#EE7733",
   "CPSF30"  = "#DD3377",
-  
   #Other
   "U2B"     = "#CC3311",
-  "?"    = "#BBBBBB"
+  "?"    = "#888888"
 )
 barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
 ```
@@ -136,7 +134,7 @@ u2b_vs_col02$colour <- factor(u2b_vs_col02$colour, levels = desired_order)
 plot_u2b_vs_col0 <- ggplot(data = u2b_vs_col02[u2b_vs_col02$U2B>=3,], aes(y=-log10(pval), x=median_logFC, label = name, fill = colour, size = median_av_exprs))+
     geom_point(shape = 21,colour = "white")+
     theme_classic(base_size=15)+
-    geom_text_repel(aes(label=name, hjust=1.2), size = 6, max.overlaps = Inf)+
+    geom_text_repel(aes(label=name, hjust=1.2), size = 5, max.overlaps = Inf)+
     xlab("median logFC")+
     #xlim(-4,12)+
     xlab('Median log2 Fold Change')+
@@ -185,13 +183,13 @@ hakai_vs_col0$name[hakai_vs_col0$protein == "AT4G09980"] <- "MTB"
 hakai_vs_col0$name[hakai_vs_col0$protein == "AT3G54170"] <- "FIP37"
 hakai_vs_col0$name[hakai_vs_col0$protein == "AT1G32360"] <- "HIZ1"
 hakai_vs_col0$colour <- writer_palette[hakai_vs_col0$name]
-hakai_vs_col0$colour[is.na(hakai_vs_col0$colour)] <- "#B5B5B5"
+hakai_vs_col0$colour[is.na(hakai_vs_col0$colour)] <- "#888888"
 
 plot_hakai_vs_col0 <- ggplot(data = hakai_vs_col0[hakai_vs_col0$HAKAI >= 3,], 
                              aes(y = -log10(pval), x = median_logFC, label = name, fill = colour, size = median_av_exprs)) +
   geom_point(shape = 21, colour = "white") +
   theme_classic(base_size = 15) +
-  geom_text_repel(aes(label = name, hjust = 1.2), size = 4, max.overlaps = Inf) +
+  geom_text_repel(aes(label = name, hjust = 1.2), size = 5, max.overlaps = Inf) +
   xlab('Median log2 Fold Change') +
   ylab('-Log10 p value') +
   ggtitle("HAKAI IP") +
@@ -223,12 +221,12 @@ mta_vs_col0$name[mta_vs_col0$protein == "AT3G54170"] <- "FIP37"
 mta_vs_col0$name[mta_vs_col0$protein == "AT1G32360"] <- "HIZ1"
 
 mta_vs_col0$colour <- writer_palette[mta_vs_col0$name]
-mta_vs_col0$colour[is.na(mta_vs_col0$colour)] <- "#B5B5B5"
+mta_vs_col0$colour[is.na(mta_vs_col0$colour)] <- "#888888"
 
 plot_mta_vs_col0 <- ggplot(data = mta_vs_col0[mta_vs_col0$MTA>=3,], aes(y=-log10(pval), x=median_logFC, label = name, fill = colour, size = median_av_exprs))+
   geom_point(shape = 21, colour = "white") +
   theme_classic(base_size = 15) +
-  geom_text_repel(aes(label = name, hjust = 1.3), size = 4, max.overlaps = Inf) +
+  geom_text_repel(aes(label = name, hjust = 1.3), size = 5, max.overlaps = Inf) +
   xlab('Median log2 Fold Change') +
   ylab('-Log10 p value') +
   ggtitle("MTA vs Col0 IP") +
@@ -252,15 +250,15 @@ ggsave(
 #VIR
 
 ```{r}
-vir1_vs_col0$name <- NA_character_
-vir1_vs_col0$name[vir1_vs_col0$protein %in% mrna_interacting$protein] <- "mRNA interacting"
-vir1_vs_col0$name[vir1_vs_col0$protein == "AT5G01160"] <- "HAKAI"
-vir1_vs_col0$name[vir1_vs_col0$protein == "AT3G05680"] <- "VIR"
-vir1_vs_col0$name[vir1_vs_col0$protein == "AT5G53440"] <- "HIZ2"
-vir1_vs_col0$name[vir1_vs_col0$protein == "AT4G10760"] <- "MTA"
-vir1_vs_col0$name[vir1_vs_col0$protein == "AT4G09980"] <- "MTB"
-vir1_vs_col0$name[vir1_vs_col0$protein == "AT3G54170"] <- "FIP37"
-vir1_vs_col0$name[vir1_vs_col0$protein == "AT1G32360"] <- "HIZ1"
+vir_vs_col0$name <- NA_character_
+vir_vs_col0$name[vir_vs_col0$protein %in% mrna_interacting$protein] <- "mRNA interacting"
+vir_vs_col0$name[vir_vs_col0$protein == "AT5G01160"] <- "HAKAI"
+vir_vs_col0$name[vir_vs_col0$protein == "AT3G05680"] <- "VIR"
+vir_vs_col0$name[vir_vs_col0$protein == "AT5G53440"] <- "HIZ2"
+vir_vs_col0$name[vir_vs_col0$protein == "AT4G10760"] <- "MTA"
+vir_vs_col0$name[vir_vs_col0$protein == "AT4G09980"] <- "MTB"
+vir_vs_col0$name[vir_vs_col0$protein == "AT3G54170"] <- "FIP37"
+vir_vs_col0$name[vir_vs_col0$protein == "AT1G32360"] <- "HIZ1"
 
 # Define palette with purple for mRNA interacting
 writer_palette_extended <- c(
@@ -269,18 +267,18 @@ writer_palette_extended <- c(
 )
 
 # Assign colours based on name, default grey if missing
-vir1_vs_col0$colour <- writer_palette_extended[vir1_vs_col0$name]
-vir1_vs_col0$colour[is.na(vir1_vs_col0$colour)] <- "#B5B5B5"
+vir_vs_col0$colour <- writer_palette_extended[vir_vs_col0$name]
+vir_vs_col0$colour[is.na(vir_vs_col0$colour)] <- "#888888"
 
 # Create a logical to label only non-mRNA interacting proteins
-vir1_vs_col0$label_plot <- ifelse(vir1_vs_col0$name == "mRNA interacting", NA, vir1_vs_col0$name)
+vir_vs_col0$label_plot <- ifelse(vir_vs_col0$name == "mRNA interacting", NA, vir_vs_col0$name)
 
 # Plot
-plot_vir1_vs_col0 <- ggplot(data = vir1_vs_col0[vir1_vs_col0$VIR >= 3,], 
+plot_vir_vs_col0 <- ggplot(data = vir_vs_col0[vir_vs_col0$VIR >= 3,], 
                             aes(y = -log10(pval), x = median_logFC, label = label_plot, fill = colour, size = median_av_exprs)) +
   geom_point(shape = 21, colour = "white") +
   theme_classic(base_size = 15) +
-  geom_text_repel(aes(label = label_plot, hjust = 1.3), size = 4, max.overlaps = Inf, na.rm = TRUE) +
+  geom_text_repel(aes(label = label_plot, hjust = 1.3), size = 5, max.overlaps = Inf, na.rm = TRUE) +
   xlab('Median log2 Fold Change') +
   ylab('-Log10 p value') +
   ggtitle("VIR vs Col0 IP") +
@@ -293,24 +291,24 @@ plot_vir1_vs_col0 <- ggplot(data = vir1_vs_col0[vir1_vs_col0$VIR >= 3,],
   theme(legend.position = c(0.8, 0.2)) +
   guides(size = "none", colour = "none")+
   # Add purple dot as key 
-  annotate("point", x = max(vir1_vs_col0$median_logFC, na.rm = TRUE) * 0.6, 
-                     y = max(-log10(vir1_vs_col0$pval), na.rm = TRUE) * 0.1,
+  annotate("point", x = max(vir_vs_col0$median_logFC, na.rm = TRUE) * 0.6, 
+                     y = max(-log10(vir_vs_col0$pval), na.rm = TRUE) * 0.1,
                      colour = "#7f47ca", size = 3, shape = 21, fill = "#7f47ca") +
   # Add text label next to the dot
-  annotate("text", x = max(vir1_vs_col0$median_logFC, na.rm = TRUE) * 0.65,
-                   y = max(-log10(vir1_vs_col0$pval), na.rm = TRUE) * 0.1,
+  annotate("text", x = max(vir_vs_col0$median_logFC, na.rm = TRUE) * 0.65,
+                   y = max(-log10(vir_vs_col0$pval), na.rm = TRUE) * 0.1,
                    label = "mRNA interacting", hjust = 0, size = 4)
 
-plot_vir1_vs_col0
+plot_vir_vs_col0
 
 ggsave(
   filename = "../../Figures/figure_1/vir_vs_col0_ip.pdf",
-  plot = plot_vir1_vs_col0,
+  plot = plot_vir_vs_col0,
   width = 6, height = 5, units = "in" 
 )
 ggsave(
   filename = "../../Figures/figure_1/vir_vs_col0_ip.png",
-  plot = plot_vir1_vs_col0,
+  plot = plot_vir_vs_col0,
   width = 6, height = 5, units = "in" 
 )
 ```
@@ -318,7 +316,7 @@ ggsave(
 Overlaps between the 3 sets
 ```{r}
 mta <- mta_vs_col0[pval < 0.05 & median_logFC > 1 & MTA>=3, protein]
-vir1 <- vir1_vs_col0[pval < 0.05 & median_logFC > 1 & VIR>=3, protein]
+vir1 <- vir_vs_col0[pval < 0.05 & median_logFC > 1 & VIR>=3, protein]
 hakai <- hakai_vs_col0[pval < 0.05 & median_logFC > 1 & HAKAI>=3, protein]
 u2b <- u2b_vs_col0[pval < 0.05 & median_logFC > 1 & U2B>=3, protein]
 
@@ -434,68 +432,43 @@ mta_vs_mtahakai$name[mta_vs_mtahakai$protein == "AT1G32360"] <- "HIZ1"
 plot_mta_vs_mtahakai <- ggplot(data = mta_vs_mtahakai[mta_vs_mtahakai$MTA>=3,], aes(y=-log10(pval), x=median_logFC, label = name, fill = colour, size = median_av_exprs))+
     geom_point(shape = 21,colour = "white")+
     theme_classic(base_size=15)+
-    geom_text_repel(aes(label=name, hjust=1.2), size = 6, max.overlaps = Inf)+
+    geom_text_repel(aes(label=name, hjust=1.2), size = 5, max.overlaps = Inf)+
     xlab("median logFC")+
     #xlim(-4,12)+
     xlab('Log2 Fold Change')+
     ylab('-Log10 P value')+
     ggtitle("MTA vs MTA in HAKAI IP")+
-    scale_fill_manual(labels = c("", "mRNA binding"),  values = c("#B5B5B5", "#7f47ca", "#717171"), name="")+
+    scale_fill_manual(labels = c("", "mRNA binding"),  values = c("#888888", "#7f47ca", "#717171"), name="")+
     theme(legend.position = c(.8, .2))+
     guides(size = "none", fill = "none")
 
 plot_mta_vs_mtahakai
 ```
-
-
-Ect plots
+Check HIZ1
 ```{r}
-plot_A <- ggplot(data = prot_res_ect[prot_res_ect$ECT2>=3,], aes(y=-log10(pval), x=median_logFC, label = name, fill=rna, size = median_av_exprs))+
-    geom_point(shape = 21,colour = "white")+
-    theme_classic(base_size=15)+
-    geom_text_repel(aes(label=name, hjust=1.2), size = 6, max.overlaps = Inf)+
-    xlab("median logFC")+
-    xlim(-4,12)+
-    xlab('Log2 Fold Change')+
-    ylab('-Log10 P value')+
-    ggtitle("RNA binding proteins")+
-    scale_fill_manual(labels = c("", "mRNA binding"),  values = c("#B5B5B5", "#7f47ca", "#717171"), name="")+
-    theme(legend.position = c(.8, .2))+
-    guides(size = "none", fill = "none")
+peptides <- fread("/Volumes/cluster/ggs_lab/mtparker/proteomics/vir_IP/maxquant_output/combined/txt/peptides.txt")
+relevant_peptides <- peptides[grep(paste("AT1G32360", "AT2G35430", sep="|"), Proteins)]
+shared_peptides <- relevant_peptides[grepl("AT1G32360", Proteins) & grepl("AT2G35430", Proteins)]
+unique_hiz1 <- relevant_peptides[grepl("AT1G32360", Proteins) & !grepl("AT2G35430", Proteins)]
+unique_alt <- relevant_peptides[grepl("AT2G35430", Proteins) & !grepl("AT1G32360", Proteins)]
+# Load proteinGroups.txt
+prot_groups <- fread("/Volumes/cluster/ggs_lab/mtparker/proteomics/vir_IP/maxquant_output/combined/txt/proteinGroups.txt")
 
-plot_A
+# Find rows where either gene appears in Protein IDs
+relevant_proteins <- prot_groups[grep(paste("AT1G32360", "At2g35430", sep="|"), `Protein IDs`)]
+# Check which groups include both HIZ1 and At2g35430
+shared_group <- relevant_proteins[grepl("AT1G32360", `Protein IDs`) & grepl("AT2G35430", `Protein IDs`)]
+# Check if HIZ1 is the majority protein
+hiz1_majority <- relevant_proteins[grepl("AT1G32360", `Majority protein IDs`)]
+# Look at number of unique peptides
+hiz1_majority[, .(Majority_protein_IDs = `Majority protein IDs`, Unique_peptides = `Unique peptides`, Sequence_coverage = `Sequence coverage [%]`)]
+
+evidence <- fread("/Volumes/cluster/ggs_lab/mtparker/proteomics/vir_IP/maxquant_output/combined/txt/evidence.txt")
+# Filter for entries mentioning either gene
+relevant_evidence <- evidence[grep(paste("AT1G32360", "AT2G35430", sep="|"), Proteins)]
+# Which entries match both genes?
+shared_evidence <- relevant_evidence[grepl("AT1G32360", Proteins) & grepl("AT2G35430", Proteins)]
 ```
-Ect ranked plot
-```{r}
-# Add rank column
-prot_res_ect[, logFC_rank := rank(-median_logFC)]
 
-# Create the plot
-p <- ggplot(prot_res_ect, aes(x = logFC_rank, y = median_logFC)) +
-  geom_point(alpha = 0.6, color = "darkblue") +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
-  geom_text_repel(
-    data = prot_res_ect,
-    aes(label = name),
-    size = 3,
-    max.overlaps = Inf,
-    color = "firebrick"
-  ) +
-  labs(
-    title = "ECT2",
-    x = "Enrichment Rank",
-    y = "Median log2FC"
-  ) +
-  theme_classic()
 
-# Show plot
-print(p)
-
-# Optionally save it
-ggsave(
-  filename = "../../Proteomics/plots/ect_labelled.pdf",
-  plot = p,
-  width = 6, height = 4
-)
-```
 

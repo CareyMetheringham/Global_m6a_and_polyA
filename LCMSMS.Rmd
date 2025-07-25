@@ -1,0 +1,115 @@
+---
+title: "LC-MS/MS"
+output: html_notebook
+---
+Colour palette
+```{r colour bar, echo=FALSE, fig.height=2, fig.width=13}
+palette <- c(
+ # Writers
+  "MTA"     = "#004488",
+  "VIR"  = "#009988",
+  "FIP37"   = "#0077BB",
+  "hiz2-4" = "#AA4499",
+  "hiz2-2"    = "#CCAA22",
+  "HAKAI" = "#556B2F",
+  #Readers
+  "ECT"     = "#EE7733",
+  "CPSF30"  = "#DD3377",
+  #Other
+  "U2B"     = "#CC3311",
+  "Col0"    = "#888888"
+)
+barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
+```
+
+```{r}
+library(data.table)
+library(ggplot2)
+library(ggbeeswarm)
+```
+
+Plot the LC-MS/MS results for hiz2-4, vir-1 and Col-0
+```{r}
+geno <- c("Col-0", "Col-0", "Col-0", "Col-0",
+          "vir-1","vir-1","vir-1","vir-1",
+          "hiz2-4", "hiz2-4", "hiz2-4", "hiz2-4")
+ratio <- c(0.007274009, 0.008633628, 0.008254319,0.008558344,
+          0.000857854, 0.000921575, 0.000947094, 0.0000896763,
+          0.00960193, 0.010145082, 0.009676993, 0.009587339)
+
+table <- data.table(geno=geno, m6A_ratio=ratio)
+```
+```{r}
+custom_colors <- c(
+    "Col-0" = "black",
+    "hiz2-4" = "#AA4499",
+    "vir-1" = "#009988"
+)
+```
+
+```{r}
+dot_And_box <- ggplot(data = table, aes(y = m6A_ratio, x = geno, colour = geno, shape = geno)) +
+  geom_boxplot(colour = "darkgrey") +
+  geom_beeswarm(size = 3, cex = 2) +
+  theme_classic(base_size = 12) +
+  scale_x_discrete(
+    labels = c("Col-0", expression(italic("hiz2-4")), expression(italic("vir-1")))
+  ) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.05)), limits = c(0, NA))+
+  labs(
+    title = "",
+    x = "Condition",
+    y = "m6A/A ratio",
+    colour = "Genotype",
+    shape = "Genotype"
+  ) +
+  scale_color_manual(
+    values = custom_colors,
+    labels = c(
+      "Col-0" = "Col-0",
+      "vir-1" = expression(italic("vir-1")),
+      "hiz2-4" = expression(italic("hiz2-4"))
+    )
+  ) +
+  scale_shape_manual(
+    values = c("Col-0" = 16, "vir-1" = 17, "hiz2-4" = 18),
+    labels = c(
+      "Col-0" = "Col-0",
+      "vir-1" = expression(italic("vir-1")),
+      "hiz2-4" = expression(italic("hiz2-4"))
+    )
+  ) +
+  guides(
+    colour = guide_legend(title = "Genotype"),
+    shape = guide_legend(title = "Genotype")
+  )
+
+dot_And_box
+```
+
+```{r}
+ggsave(
+  filename = "../../Figures/figure_2/hiz2_4lcms.pdf",
+  plot = dot_And_box,
+  width = 5, height = 4, units = "in",
+    bg = "transparent"
+)
+ggsave(
+  filename = "../../Figures/figure_2/hiz2_4lcms.png",
+  plot = dot_And_box,
+  width = 5, height = 4, units = "in" 
+)
+```
+Calculate stats
+```{r}
+# Convert temperature and genotype to factors
+table$geno <- as.factor(table$geno)
+
+# ANOVA
+anova_result <- aov(m6A_ratio ~ geno, data = table)
+summary(anova_result)
+
+# t.test
+t.test(table$m6A_ratio[table$geno=="Col-0"], table$m6A_ratio[table$geno=="hiz2-4"], conf.level = 0.95)
+t.test(table$m6A_ratio[table$geno=="Col-0"], table$m6A_ratio[table$geno=="vir-1"], conf.level = 0.95)
+```

@@ -1,0 +1,155 @@
+---
+title: "FLACC results"
+---
+Load libraries
+```{r}
+library(ggplot2)
+library(dplyr)
+library(FSA)
+library(ggbeeswarm)
+```
+```{r colour bar, echo=FALSE, fig.height=2, fig.width=13}
+palette <- c(
+ # Writers
+  "MTA"     = "#004488",
+  "VIR"  = "#009988",
+  "FIP37"   = "#0077BB",
+  "hiz2-4" = "#AA4499",
+  "hiz2-2"    = "#CCAA22",
+  "HAKAI" = "#556B2F",
+  #Readers
+  "ECT"     = "#EE7733",
+  "CPSF30"  = "#DD3377",
+  #Other
+  "U2B"     = "#CC3311",
+  "Col-0"    = "#888888"
+)
+barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
+```
+
+Plot the proportion of A in DRACH motifs
+```{r}
+drach_summary <- data.frame(geno = c(rep("Col0", 4), rep("flacc_mutant", 4), rep("flacc_ox", 4)),
+                            prop = c(0.0507, 0.0481, 0.0482, 0.0462,
+                                     0.0090, 0.0060, 0.0066, 0.0069,
+                                     0.0531, 0.0508, 0.0524, 0.0529))
+```
+Plot a boxplot
+```{r}
+# Define custom colors for each genotype
+geno_colors <- c("Col0" = "chartreuse4", "flacc_mutant" = "darkorange", "flacc_ox" = "slateblue")
+
+# Define custom shapes (optional)
+geno_shapes <- c("Col0" = 16, "flacc_mutant" = 17, "flacc_ox" = 18)  # Different shapes for clarity
+
+summary_plot <- ggplot(data = drach_summary, aes(group = geno, colour = geno, y = prop, x = geno, shape = geno)) +
+    geom_point(size = 3) +
+    scale_color_manual(values = geno_colors) +  # Set custom colors
+    scale_shape_manual(values = geno_shapes) +  # Set custom shapes
+    labs(x = "Genotype", y = "Modified DRACH proportion", colour = "Genotype", shape = "Genotype") +  # Custom labels
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))  
+summary_plot
+```
+Plot in same style as LC-MS/MS
+```{r}
+custom_colors <- c("Col0" = "black", "flacc_mutant" = "#CCAA22", "flacc_ox" = "#AA4499")
+custom_shapes <- c("Col0" = 16, "flacc_mutant" = 15, "flacc_ox" = 18)
+
+# Create the plot
+summary_plot <- ggplot(data = drach_summary, aes(y = prop, x = geno, colour = geno, shape = geno)) +
+  geom_boxplot(colour = "darkgrey", outlier.shape = NA) +
+  geom_beeswarm(size = 3, cex = 2) +
+  theme_classic(base_size = 12) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.05)),
+    limits = c(0, NA)
+  ) +
+  scale_x_discrete(
+    labels = c(
+      "Col0" = "Col-0",
+      "flacc_mutant" = expression(italic("hiz2-2")),
+      "flacc_ox" = expression(italic("hiz2-4"))
+    )
+  ) +
+  labs(
+    x = "Genotype",
+    y = "Proportion on DRACH predicted modified",
+    colour = "Genotype",
+    shape = "Genotype"
+  ) +
+  scale_color_manual(
+    values = custom_colors,
+    labels = c(
+      "Col0" = "Col-0",
+      "flacc_mutant" = expression(italic("hiz2-2")),
+      "flacc_ox" = expression(italic("hiz2-4"))
+    )
+  ) +
+  scale_shape_manual(
+    values = custom_shapes,
+    labels = c(
+      "Col0" = "Col-0",
+      "flacc_mutant" = expression(italic("hiz2-2")),
+      "flacc_ox" = expression(italic("hiz2-4"))
+    )
+  ) +
+  guides(
+    colour = guide_legend(title = "Genotype"),
+    shape = guide_legend(title = "Genotype")
+  )
+
+summary_plot
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_2/rna004_flacc_m6a_prediction.pdf",
+  plot = summary_plot,
+  width = 5, height = 4, units = "in"
+)
+ggsave(
+  filename = "../../Figures/figure_2/rna004_flacc_m6a_prediction.png",
+  plot = summary_plot,
+  width = 5, height = 4, units = "in" 
+)
+```
+
+Is this a significant difference?
+```{r}
+drach_summary_filtered <- drach_summary %>% filter(!is.na(prop))
+shapiro.test(drach_summary_filtered$prop)
+kruskal.test(prop ~ geno, data = drach_summary_filtered)
+dunnTest(prop ~ geno, data = drach_summary_filtered, method = "bonferroni")
+t.test(c(0.0507, 0.0481, 0.0482, 0.0462), c(0.0090, 0.0060, 0.0066, 0.0069), conf.int = 0.95)
+t.test(c(0.0531, 0.0508, 0.0524, 0.0529), c(0.0507, 0.0481, 0.0482, 0.0462), conf.int = 0.95)
+```
+Modifications on a per site basis
+```{r}
+flacc_mutant_1 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_mutant_1.bed", header=FALSE)
+flacc_mutant_2 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_mutant_2.bed", header=FALSE)
+colnames(flacc_mutant_2) <- c(
+  "chrom",
+  "start",
+  "end",
+  "mod_code_motif",
+  "score",
+  "strand",
+  "start_compat",
+  "end_compat",
+  "color",
+  "Nvalid_cov",
+  "percent_modified",
+  "Nmod",
+  "Ncanonical",
+  "Nother_mod",
+  "Ndelete",
+  "Nfail",
+  "Ndiff",
+  "Nnocall"
+)
+```
+
+```{r}
+
+```
+
