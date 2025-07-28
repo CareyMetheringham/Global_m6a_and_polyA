@@ -332,25 +332,24 @@ Compute the per site means
 ```{r}
 summary_table_means <- summary_table %>%
   mutate(
-    # Mean across ALL Nvalid_cov columns
     mean_Nvalid_cov = rowMeans(dplyr::select(., ends_with(".Nvalid_cov")), na.rm = TRUE),
-    # Mean across ALL percent_modified columns
     mean_percent_modified = rowMeans(dplyr::select(., ends_with(".percent_modified")), na.rm = TRUE),
-    # Grouped means for col0
-    mean_Nvalid_cov_col0 = rowMeans(dplyr::select(., starts_with("col0") & ends_with(".Nvalid_cov")), na.rm = TRUE),
-    mean_percent_modified_col0 = rowMeans(dplyr::select(., starts_with("col0") & ends_with(".percent_modified")), na.rm = TRUE),
-    # Grouped means for flacc_mutant
-    mean_Nvalid_cov_mutant = rowMeans(dplyr::select(., starts_with("flacc_mutant") & ends_with(".Nvalid_cov")), na.rm = TRUE),
-    mean_percent_modified_mutant = rowMeans(dplyr::select(., starts_with("flacc_mutant") & ends_with(".percent_modified")), na.rm = TRUE),
-    # Grouped means for flacc_OX
-    mean_Nvalid_cov_OX = rowMeans(dplyr::select(., starts_with("flacc_OX") & ends_with(".Nvalid_cov")), na.rm = TRUE),
-    mean_percent_modified_OX = rowMeans(dplyr::select(., starts_with("flacc_OX") & ends_with(".percent_modified")), na.rm = TRUE)
+
+    mean_Nvalid_cov_col0 = rowMeans(dplyr::select(., matches("^col0.*\\.Nvalid_cov$")), na.rm = TRUE),
+    mean_percent_modified_col0 = rowMeans(dplyr::select(., matches("^col0.*\\.percent_modified$")), na.rm = TRUE),
+
+    mean_Nvalid_cov_mutant = rowMeans(dplyr::select(., matches("^flacc_mutant.*\\.Nvalid_cov$")), na.rm = TRUE),
+    mean_percent_modified_mutant = rowMeans(dplyr::select(., matches("^flacc_mutant.*\\.percent_modified$")), na.rm = TRUE),
+
+    mean_Nvalid_cov_OX = rowMeans(dplyr::select(., matches("^flacc_OX.*\\.Nvalid_cov$")), na.rm = TRUE),
+    mean_percent_modified_OX = rowMeans(dplyr::select(., matches("^flacc_OX.*\\.percent_modified$")), na.rm = TRUE)
   )
 head(summary_table_means)
 ```
 Filter the table by the mean coverage
 ```{r}
 summary_table_means.filtered <- summary_table_means[summary_table_means$mean_Nvalid_cov>=20,]
+summary_table_means.filtered <- summary_table_means.filtered[summary_table_means$mean_percent_modified_col0>0,]
 # write to table
 write_csv(summary_table_means.filtered, file = "flacc004_modifications.csv")
 ```
@@ -359,33 +358,24 @@ Plot the comparison of the mean percentage modified Col-0 and hiz2-2
 t.test(summary_table_means.filtered$mean_percent_modified_col0, summary_table_means.filtered$mean_percent_modified_mutant, conf.level = 0.95)
 t.test(summary_table_means.filtered$mean_percent_modified_col0, summary_table_means.filtered$mean_percent_modified_OX, conf.level = 0.95)
 ```
-Plot the comparison of the mean percentage modified Col-0 and hiz2-4
+Plot the comparison of the mean percentage modified Col-0 and hiz2-2
 ```{r}
 df2 <- summary_table_means.filtered
-# Create a factor with three levels: "higher", "lower", "equal"
-df2$comparison <- with(df2, 
-  ifelse(mean_percent_modified_col0 < mean_percent_modified_mutant, "higher",
-  ifelse(mean_percent_modified_col0 > mean_percent_modified_mutant, "lower", "equal"))
-)
-# Calculate percentages for each group
-pct_table <- prop.table(table(df2$comparison)) * 100
-pct_table
-
 df2$higher_in_x <- df2$mean_percent_modified_col0 < df2$mean_percent_modified_mutant
 
-ggplot(df2, aes(x = mean_percent_modified_col0,
+hiz2_2_sites <- ggplot(df2, aes(x = mean_percent_modified_col0,
                y = mean_percent_modified_mutant,
                color = higher_in_x,
                size = mean_Nvalid_cov)) +
   geom_point(alpha = 0.8, show.legend = TRUE) +  
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
-  scale_color_manual(values = c("FALSE" = "#AA4499", "TRUE" = "grey50")) +
-  scale_size_continuous(range = c(1, 5)) +
+  scale_color_manual(values = c("FALSE" = "#CCAA22", "TRUE" = "grey50")) +
+  scale_size_continuous(range = c(1, 10)) +
   theme_minimal(base_size = 10) +
   labs(
     x = "Mean % Modified (Col-0)",
-    y = "Mean % Modified (hiz2-4)",
-    size = "Mean Valid Coverage"
+    y = "Mean % Modified (hiz2-2)",
+    size = "Mean Coverage"
   ) +
   theme(
     legend.position = "top",
@@ -394,37 +384,40 @@ ggplot(df2, aes(x = mean_percent_modified_col0,
   ) +
   guides(
     color = "none",          
-    size = guide_legend(nrow = 1)
-  ) 
+    size = "none"
+  )
+
+hiz2_2_sites
+ggsave(
+  filename = "../../Figures/figure_2/hiz2_2_sites.pdf",
+  plot = hiz2_2_sites,
+  width = 5, height = 4, units = "in"
+)
+ggsave(
+  filename = "../../Figures/figure_2/hiz2_2_sites.png",
+  plot = hiz2_2_sites,
+  width = 5, height = 4, units = "in" 
+)
 ```
 
 Plot the comparison of the mean percentage modified Col-0 and hiz2-4
 ```{r}
 df <- summary_table_means.filtered
-# Create a factor with three levels: "higher", "lower", "equal"
-df$comparison <- with(df, 
-  ifelse(mean_percent_modified_col0 < mean_percent_modified_OX, "higher",
-  ifelse(mean_percent_modified_col0 > mean_percent_modified_OX, "lower", "equal"))
-)
-# Calculate percentages for each group
-pct_table <- prop.table(table(df$comparison)) * 100
-pct_table
-
 df$higher_in_x <- df$mean_percent_modified_col0 < df$mean_percent_modified_OX
 
-ggplot(df, aes(x = mean_percent_modified_col0,
+hiz2_4_sites <- ggplot(df, aes(x = mean_percent_modified_col0,
                y = mean_percent_modified_OX,
                color = higher_in_x,
                size = mean_Nvalid_cov)) +
   geom_point(alpha = 0.8, show.legend = TRUE) +  
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
-  scale_color_manual(values = c("TRUE" = "#CCAA22", "FALSE" = "grey50")) +
-  scale_size_continuous(range = c(1, 5)) +
+  scale_color_manual(values = c("TRUE" = "#AA4499", "FALSE" = "grey50")) +
+  scale_size_continuous(range = c(1, 10)) +
   theme_minimal(base_size = 10) +
   labs(
     x = "Mean % Modified (Col-0)",
     y = "Mean % Modified (hiz2-4)",
-    size = "Mean Valid Coverage"
+    size = "Mean Coverage"
   ) +
   theme(
     legend.position = "top",
@@ -433,11 +426,102 @@ ggplot(df, aes(x = mean_percent_modified_col0,
   ) +
   guides(
     color = "none",          
-    size = guide_legend(nrow = 1)
-  ) 
+    size = "none"
+ )
+
+hiz2_4_sites
+ggsave(
+  filename = "../../Figures/figure_2/hiz2_4_sites.pdf",
+  plot = hiz2_4_sites,
+  width = 5, height = 4, units = "in"
+)
+ggsave(
+  filename = "../../Figures/figure_2/hiz2_4_sites.png",
+  plot = hiz2_4_sites,
+  width = 5, height = 4, units = "in" 
+)
 ```
-
-
+Count up the sites where one is higher than the other?
+hiz2-2
 ```{r}
-t.test(summary_table_means.filtered$mean_percent_modified_col0, summary_table_means.filtered$mean_percent_modified_OX, conf.level = 0.95)
+count_non_na <- summary_table_means %>%
+  filter(
+    !is.na(mean_percent_modified_mutant),
+    !is.na(mean_percent_modified_col0),
+    !(mean_percent_modified_mutant == 0 & mean_percent_modified_col0 == 0)
+  ) %>%
+  nrow()
+
+count_higher <- summary_table_means %>%
+  filter(
+    !is.na(mean_percent_modified_mutant),
+    !is.na(mean_percent_modified_col0),
+    !(mean_percent_modified_mutant == 0 & mean_percent_modified_col0 == 0),
+    mean_percent_modified_mutant > mean_percent_modified_col0
+  ) %>%
+  nrow()
+
+count_lower <- summary_table_means %>%
+  filter(
+    !is.na(mean_percent_modified_mutant),
+    !is.na(mean_percent_modified_col0),
+    !(mean_percent_modified_mutant == 0 & mean_percent_modified_col0 == 0),
+    mean_percent_modified_mutant < mean_percent_modified_col0
+  ) %>%
+  nrow()
+
+count_equal <- summary_table_means %>%
+  filter(
+    !is.na(mean_percent_modified_mutant),
+    !is.na(mean_percent_modified_col0),
+    !(mean_percent_modified_mutant == 0 & mean_percent_modified_col0 == 0),
+    mean_percent_modified_mutant == mean_percent_modified_col0
+  ) %>%
+  nrow()
+count_non_na
+count_higher / count_non_na * 100
+count_lower / count_non_na * 100
+count_equal / count_non_na * 100
 ```
+hiz2-4
+```{r}
+count_non_na <- summary_table_means %>%
+  filter(
+    !is.na(mean_percent_modified_OX),
+    !is.na(mean_percent_modified_col0),
+    !(mean_percent_modified_OX == 0 & mean_percent_modified_col0 == 0)
+  ) %>%
+  nrow()
+
+count_higher <- summary_table_means %>%
+  filter(
+    !is.na(mean_percent_modified_OX),
+    !is.na(mean_percent_modified_col0),
+    !(mean_percent_modified_OX == 0 & mean_percent_modified_col0 == 0),
+    mean_percent_modified_OX > mean_percent_modified_col0
+  ) %>%
+  nrow()
+
+count_lower <- summary_table_means %>%
+  filter(
+    !is.na(mean_percent_modified_OX),
+    !is.na(mean_percent_modified_col0),
+    !(mean_percent_modified_OX == 0 & mean_percent_modified_col0 == 0),
+    mean_percent_modified_OX < mean_percent_modified_col0
+  ) %>%
+  nrow()
+
+count_equal <- summary_table_means %>%
+  filter(
+    !is.na(mean_percent_modified_OX),
+    !is.na(mean_percent_modified_col0),
+    !(mean_percent_modified_OX == 0 & mean_percent_modified_col0 == 0),
+    mean_percent_modified_OX == mean_percent_modified_col0
+  ) %>%
+  nrow()
+count_non_na
+count_higher / count_non_na * 100
+count_lower / count_non_na * 100
+count_equal / count_non_na * 100
+```
+

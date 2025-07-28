@@ -60,6 +60,35 @@ hiz2_4_diff_err <- fread("/Volumes/cluster/ggs_lab/mtparker/papers/flacc/flacc_n
 colnames(hiz2_4_diff_err) <- c("chrom", "start", "end", "name", "score", "strand", "odds", "G", "P", "FDR", "g_hom", "P_hom", "g_hom_c", "P_hom_c")
 head(hiz2_4_diff_err)
 ```
+Get a histogram of fold changes of errors/matches
+```{r}
+histogram <- ggplot(data = hiz2_4_diff_err, aes(x = odds)) +
+  scale_x_continuous(limits = c(-10,10), expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  geom_area(aes(x=X,y=Y),data=data.frame(X=c(-10,0), Y = 300),alpha=0.3,fill="#F0E442")+
+  geom_area(aes(x=X,y=Y),data=data.frame(X=c(0,10), Y = 300),alpha=0.3,fill="#0072B2")+
+  geom_histogram(fill = "#AA4499", colour="white", bins=40)+
+  geom_vline(xintercept = 0, linetype = "dashed", color = "#252525") +
+  annotate("text", x = -2.5, y = 190, label = paste("n=", sum(hiz2_4_diff_err$odds < 0)), size = 5) +
+  annotate("text", x = 2.9, y = 190, label = paste("n=", sum(hiz2_4_diff_err$odds > 0)), hjust = 1, size = 5) +
+  theme_minimal(base_size=15)+
+  xlab("Fold change of errors/matches (log2 scale)")+
+  ylab("Error sites (frequency)")
+
+histogram
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_2/hiz2-4_vir1_diff_err_histogram.pdf",
+  plot = histogram,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_2/hiz2-4_vir1_diff_histogram.png",
+  plot = histogram,
+  width = 6, height = 5, units = "in" 
+)
+```
 
 Where are the sites located?
 ```{r}

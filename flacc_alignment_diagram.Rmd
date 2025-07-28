@@ -134,6 +134,7 @@ abline(v = c(21683920), col = "darkred", lty = 2, lwd = 1)
 text(21683920, total_height + 4, "T-DNA", col = "darkred", pos = 2)
 ```
 ```{r}
+pdf("../../Figures/figure_2/old_flacc_read_plot.pdf", width = 8, height = 6)  
 layout(matrix(1:2, nrow = 2), heights = c(5, 2))
 # Set outer margins
 par(oma = c(1, 1, 1, 1))  # outer margins: bottom, left, top, right
@@ -193,6 +194,8 @@ for (i in seq_len(nrow(exons)-1)) {
 
 # Optional: add legend or text labels
 text(x = mean(c(from, to)), y = 0.9, labels = "", cex = 0.8)
+
+dev.off()
 ```
 
 New Flacc data
