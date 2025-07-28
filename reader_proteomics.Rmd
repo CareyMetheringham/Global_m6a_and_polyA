@@ -1,0 +1,142 @@
+---
+title: "Proteomics Plots"
+---
+```{r}
+library(data.table)
+library(readr)
+library(ggplot2)
+library(cowplot)
+library(discretization)
+library(ggrepel)
+library(stringr)
+library(eulerr)
+library(org.At.tair.db)
+library(AnnotationDbi)
+library(readxl)
+library(dplyr)
+```
+Colour palette
+```{r colour bar, echo=FALSE, fig.height=2, fig.width=13}
+palette <- c(
+ # Writers
+  "MTA"     = "#004488",
+  "VIR"  = "#009988",
+  "FIP37"   = "#0077BB",
+  "hiz2-4" = "#AA4499",
+  "hiz2-2"    = "#CCAA22",
+  "HAKAI" = "#556B2F",
+  #Readers
+  "ECT"     = "#EE7733",
+  "CPSF30"  = "#DD3377",
+  #Other
+  "U2B"     = "#CC3311",
+  "?"    = "#888888"
+)
+barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
+```
+
+
+Read in the proteomics data
+```{r}
+ect_vs_col0 <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/ect2_vs_col0.tsv")
+hakai_vs_col0 <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/hakai_vs_col0.tsv")
+u2b_vs_col0 <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/u2b_vs_col0.tsv")
+vir_vs_col0 <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/vir1_vs_col0.tsv")
+mta_vs_col0 <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/mta_vs_col0.tsv")
+mta_vs_mtahakai <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/MTA_vs_MTAhakai.tsv")
+```
+
+Tidy proteomics data
+```{r}
+tables <- list(
+  ect_vs_col0 = ect_vs_col0,
+  hakai_vs_col0 = hakai_vs_col0,
+  mta_vs_mtahakai = mta_vs_mtahakai,
+  mta_vs_col0 = mta_vs_col0,
+  vir_vs_col0 = vir_vs_col0,
+  u2b_vs_col0 = u2b_vs_col0
+)
+for (name in names(tables)) {
+    tables[[name]][, protein := sapply(strsplit(protein, ".", fixed = TRUE), `[`, 1)]
+}
+```
+
+Get all gene ID and GO terms
+```{r}
+for (name in names(tables)) {
+    gene_names <- AnnotationDbi::select(org.At.tair.db,
+                                    keys = tables[[name]]$protein,
+                                    columns = c("SYMBOL"),
+                                    keytype = "TAIR")
+    table <- merge(tables[[name]], gene_names, by.x = "protein", by.y = "TAIR", all.x = TRUE)
+    table_merged <- table[, .(
+    SYMBOL = paste(unique(na.omit(SYMBOL)), collapse = ",")
+  ), by = eval(names(table)[1:11])]
+    #Save
+    tables[[name]] <- table_merged
+    write_csv(table_merged, file = paste(name, "csv", sep = "."))
+}
+```
+Protein lists
+```{r}
+mrna_interacting <- fread("../../Proteomics/mrna_interacting.txt")
+ects <- fread("../../Proteomics/ect_proteins.txt")
+writer_complex <- c("AT5G01160", "AT3G05680", "AT5G53440", "AT4G10760", "AT4G09980", "AT3G54170")
+```
+Annotations from Gordon's list
+
+LogFC plots
+
+#U2BL
+```{r}
+ect_vs_col0 <- merge(ect_vs_col0, ects, by = "protein", all.x = TRUE)
+
+# Add a 'category' column (ECT or other)
+ect_vs_col0$category <- ifelse(!is.na(ect_vs_col0$name), "ECT", "other")
+
+# Colour column, set NA for "other"
+ect_vs_col0$colour <- ifelse(ect_vs_col0$category == "ECT", "ECT", NA)
+
+# Define color vector
+category_colors <- c("ECT" = "#EE7733")
+
+# Plot
+plot_ect_vs_col0 <- ggplot(
+  data = ect_vs_col0[ect_vs_col0$ECT >= 3, ],
+  aes(
+    y = -log10(pval),
+    x = median_logFC,
+    label = name,
+    fill = colour,
+    size = median_av_exprs
+  )
+) +
+  geom_point(shape = 21, colour = "white") +
+  theme_classic(base_size = 15) +
+  geom_text_repel(size = 5, max.overlaps = Inf, hjust = 1.2) +
+  xlab("Median log2 Fold Change") +
+  ylab("-log10 p value") +
+  ggtitle("ECT2 IP") +
+  scale_fill_manual(
+    values = category_colors,
+    name = "Category"
+  ) +
+  theme(legend.position = c(.2, .7)) +
+  guides(size = "none", fill = guide_legend(title = "Category"))
+
+plot_ect_vs_col0
+```
+
+
+```{r}
+ggsave(
+  filename = "../../Figures/figure_4/ect234.pdf",
+  plot = plot_ect_vs_col0,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_4/ect234.png",
+  plot = plot_ect_vs_col0,
+  width = 6, height = 5, units = "in" 
+)
+```
