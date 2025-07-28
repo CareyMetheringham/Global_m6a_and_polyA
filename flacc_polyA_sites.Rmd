@@ -1,0 +1,126 @@
+---
+title: "hiz2_4 poly(A) sites"
+---
+Colour palette
+```{r colour bar, echo=FALSE, fig.height=2, fig.width=13}
+palette <- c(
+ # Writers
+  "MTA"     = "#004488",
+  "VIR"  = "#009988",
+  "FIP37"   = "#0077BB",
+  "hiz2-4" = "#AA4499",
+  "hiz2-2"    = "#CCAA22",
+  "HAKAI" = "#556B2F",
+  #Readers
+  "ECT"     = "#EE7733",
+  "CPSF30"  = "#DD3377",
+  #Other
+  "U2B"     = "#CC3311",
+  "Col-0"    = "#888888"
+)
+barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
+```
+Poly(A) sites in vir-1
+```{r}
+results_header <- c("chrom","start","end","gene_id","score","strand","wass_dist","wass_dir","wass_pval","wass_fdr","nreads_cntrl","nreads_treat")
+vir1_virc_res <- read.table("~/Downloads/vir1_vs_VIRc.apa_results.bed")
+vir1_col0_res <- read.table("~/Downloads/vir1_vs_col0.apa_results.bed")
+hiz2_4_col0_res <- read.table("~/Downloads/hiz2_4_vs_col0.apa_results.bed")
+colnames(vir1_virc_res) <- colnames(vir1_col0_res) <- colnames(hiz2_4_col0_res) <- results_header
+```
+Sites choice in vir1
+```{r}
+vir1_col0_res.filter <- vir1_col0_res[which(vir1_col0_res$wass_dist > 25 & vir1_col0_res$wass_fdr < 0.05),]
+
+vir1_site_choice <- ggplot(vir1_col0_res.filter, aes(x=wass_dir))+
+    scale_x_continuous(limits = c(-250,250), expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0)) +
+    geom_area(aes(x=X,y=Y),data=data.frame(X=c(-250,0), Y = 400),alpha=0.3,fill="darkorange")+
+    geom_area(aes(x=X,y=Y),data=data.frame(X=c(0,250), Y = 400),alpha=0.3,fill="darkgreen")+
+    geom_histogram(fill = "#009988", colour="white", bins=30)+
+    annotate("text", x = -200, y = 390, label = paste("n=", nrow(vir1_col0_res.filter)), hjust = 1, size = 3) +
+    theme_classic(base_size=10)+
+    ylab("frequency")+
+    xlab("Change in mean 3' position")+
+        geom_vline(xintercept=0,linetype="dashed")+
+    ggtitle("Differential poly(A) site usage: vir1 vs col0")
+
+vir1_site_choice
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_2/vir1_site_choice.pdf",
+  plot = vir1_site_choice,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_2/vir1_site_choice.png",
+  plot = vir1_site_choice,
+  width = 6, height = 5, units = "in" 
+)
+```
+
+```{r}
+hiz2_4_col0_res.filter <- hiz2_4_col0_res[which(hiz2_4_col0_res$wass_dist > 25 & hiz2_4_col0_res$wass_fdr < 0.05),]
+
+hiz2_4_site_choice <- ggplot(hiz2_4_col0_res.filter, aes(x=wass_dir))+
+    scale_x_continuous(limits = c(-250,250), expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0)) +
+    geom_area(aes(x=X,y=Y),data=data.frame(X=c(-250,0), Y = 400),alpha=0.3,fill="darkorange")+
+    geom_area(aes(x=X,y=Y),data=data.frame(X=c(0,250), Y = 400),alpha=0.3,fill="darkgreen")+
+    geom_histogram(fill = "#AA4499", colour="white", bins=30)+
+    annotate("text", x = -200, y = 390, label = paste("n=", nrow(hiz2_4_col0_res.filter)), hjust = 1, size = 3) +
+    theme_classic(base_size=10)+
+    ylab("frequency")+
+    xlab("Change in mean 3' position")+
+        geom_vline(xintercept=0,linetype="dashed")+
+    ggtitle("Differential poly(A) site usage: hiz2_4 vs col0")
+
+hiz2_4_site_choice
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_2/hiz2_4_site_choice.pdf",
+  plot = hiz2_4_site_choice,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_2/hiz2_4_site_choice.png",
+  plot = hiz2_4_site_choice,
+  width = 6, height = 5, units = "in" 
+)
+```
+Fip37 in new cpsf30
+```{r}
+fip_res <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/CPSF30_rerun/data/apa_results/fip37_vs_col0.apa_results.bed")
+colnames(fip_res) <- results_header
+
+fip_res.filter <- fip_res[which(fip_res$wass_dist > 25 & fip_res$wass_fdr < 0.05),]
+
+fip37_site_choice <- ggplot(fip_res.filter, aes(x=wass_dir))+
+    scale_x_continuous(limits = c(-250,250), expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0)) +
+    geom_area(aes(x=X,y=Y),data=data.frame(X=c(-250,0), Y = 150),alpha=0.3,fill="darkorange")+
+    geom_area(aes(x=X,y=Y),data=data.frame(X=c(0,250), Y = 150),alpha=0.3,fill="darkgreen")+
+    geom_histogram(fill = "#0077BB", colour="white", bins=30)+
+    annotate("text", x = -200, y = 90, label = paste("n=", nrow(fip_res.filter)), hjust = 1, size = 3) +
+    theme_classic(base_size=10)+
+    ylab("frequency")+
+    xlab("Change in mean 3' position")+
+        geom_vline(xintercept=0,linetype="dashed")+
+    ggtitle("Differential poly(A) site usage: fip37-4 vs col0")
+
+fip37_site_choice
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_2/fip37_site_choice.pdf",
+  plot = fip37_site_choice,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_2/fip37_site_choice.png",
+  plot = fip37_site_choice,
+  width = 6, height = 5, units = "in" 
+)
+```
