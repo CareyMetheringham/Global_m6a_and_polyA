@@ -25,8 +25,10 @@ Poly(A) sites in vir-1
 results_header <- c("chrom","start","end","gene_id","score","strand","wass_dist","wass_dir","wass_pval","wass_fdr","nreads_cntrl","nreads_treat")
 vir1_virc_res <- read.table("~/Downloads/vir1_vs_VIRc.apa_results.bed")
 vir1_col0_res <- read.table("~/Downloads/vir1_vs_col0.apa_results.bed")
-hiz2_4_col0_res <- read.table("~/Downloads/hiz2_4_vs_col0.apa_results.bed")
-colnames(vir1_virc_res) <- colnames(vir1_col0_res) <- colnames(hiz2_4_col0_res) <- results_header
+hiz2_4_col0_res <- read.table("~/Downloads/flacc_vs_col0.apa_results.bed")
+hiz2_4_col0_res.2 <- read.table("/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/apa_results/flacc_OX_vs_col0.apa_results.bed")
+hiz2_2_col0_res <- read.table("/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/apa_results/flacc_mutant_vs_col0.apa_results.bed")
+colnames(vir1_virc_res) <- colnames(vir1_col0_res) <- colnames(hiz2_4_col0_res) <- colnames(hiz2_4_col0_res.2) <- colnames(hiz2_2_col0_res) <- results_header
 ```
 Sites choice in vir1
 ```{r}
@@ -79,6 +81,24 @@ hiz2_4_site_choice <- ggplot(hiz2_4_col0_res.filter, aes(x=wass_dir))+
 hiz2_4_site_choice
 ```
 ```{r}
+hiz2_4_col0_res.filter <- hiz2_4_col0_res.2[which(hiz2_4_col0_res.2$wass_dist > 25 & hiz2_4_col0_res.2$wass_fdr < 0.05),]
+
+hiz2_4_site_choice <- ggplot(hiz2_4_col0_res.filter, aes(x=wass_dir))+
+    scale_x_continuous(limits = c(-250,250), expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0)) +
+    geom_area(aes(x=X,y=Y),data=data.frame(X=c(-250,0), Y = 400),alpha=0.3,fill="darkorange")+
+    geom_area(aes(x=X,y=Y),data=data.frame(X=c(0,250), Y = 400),alpha=0.3,fill="darkgreen")+
+    geom_histogram(fill = "#AA4499", colour="white", bins=30)+
+    annotate("text", x = -200, y = 390, label = paste("n=", nrow(hiz2_4_col0_res.filter)), hjust = 1, size = 3) +
+    theme_classic(base_size=10)+
+    ylab("frequency")+
+    xlab("Change in mean 3' position")+
+        geom_vline(xintercept=0,linetype="dashed")+
+    ggtitle("Differential poly(A) site usage: hiz2_4 vs col0")
+
+hiz2_4_site_choice
+```
+```{r}
 ggsave(
   filename = "../../Figures/figure_2/hiz2_4_site_choice.pdf",
   plot = hiz2_4_site_choice,
@@ -87,6 +107,35 @@ ggsave(
 ggsave(
   filename = "../../Figures/figure_2/hiz2_4_site_choice.png",
   plot = hiz2_4_site_choice,
+  width = 6, height = 5, units = "in" 
+)
+```
+```{r}
+hiz2_2_col0_res.filter <- hiz2_2_col0_res[which(hiz2_2_col0_res$wass_dist > 25 & hiz2_2_col0_res$wass_fdr < 0.05),]
+
+hiz2_2_site_choice <- ggplot(hiz2_2_col0_res.filter, aes(x=wass_dir))+
+    scale_x_continuous(limits = c(-250,250), expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0)) +
+    geom_area(aes(x=X,y=Y),data=data.frame(X=c(-250,0), Y = 150),alpha=0.3,fill="darkorange")+
+    geom_area(aes(x=X,y=Y),data=data.frame(X=c(0,250), Y = 150),alpha=0.3,fill="darkgreen")+
+    geom_histogram(fill = "#CCAA22", colour="white", bins=30)+
+    annotate("text", x = -200, y = 140, label = paste("n=", nrow(hiz2_2_col0_res.filter)), hjust = 1, size = 3) +
+    theme_classic(base_size=10)+
+    ylab("frequency")+
+    xlab("Change in mean 3' position")+
+        geom_vline(xintercept=0,linetype="dashed")
+
+hiz2_2_site_choice
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_2/hiz2_2_site_choice.pdf",
+  plot = hiz2_2_site_choice,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_2/hiz2_2_site_choice.png",
+  plot = hiz2_2_site_choice,
   width = 6, height = 5, units = "in" 
 )
 ```
