@@ -304,7 +304,7 @@ vir1_overlap_props
 Make a summary table
 ```{r}
 summarise_table_list <- function(df_list) {
-  key_cols <- c("chrom", "start", "end", "mod_code_motif", "score", "strand")
+  key_cols <- c("chrom", "start", "end", "mod_code_motif", "strand")
   
   processed_list <- lapply(names(df_list), function(name) {
     df <- df_list[[name]]
