@@ -1,0 +1,222 @@
+---
+title: "Plotting the 3' end peaks"
+---
+```{r colour bar, echo=FALSE, fig.height=2, fig.width=13}
+palette <- c(
+ # Writers
+  "MTA"     = "#004488",
+  "VIR"  = "#009988",
+  "FIP37"   = "#0077BB",
+  "hiz2-4" = "#AA4499",
+  "hiz2-2"    = "#CCAA22",
+  "HAKAI" = "#556B2F",
+  #Readers
+  "ECT"     = "#EE7733",
+  "CPSF30"  = "#DD3377",
+  #Other
+  "U2B"     = "#CC3311",
+  "Col0"    = "#888888"
+)
+barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
+```
+
+Plot for response for reviewer on 3' end position change
+
+```{r}
+library(Rsamtools)
+library(GenomicAlignments)
+library(GenomicRanges)
+library(tidyverse)
+library(ggplot2)
+```
+Get location of the modifications
+
+```{r}
+mods <- fread("flacc004_modifications.csv")
+head(mods)
+```
+
+
+Define region
+```{r}
+range_start <- 8917800
+range_end <- 8918300
+gene_name = "ISTL2"
+Chr = "1"
+```
+Include the location of the m6A modification
+
+```{r}
+filtered_mods <- mods[(mods$chrom=="1" & mods$start>8917800 & mods$end<8918300),]
+```
+
+1 modified position @ 8918176
+56% modified in Col-0 and in hiz2-4
+
+```{r}
+region <- GRanges(seqnames = Chr, ranges = IRanges(start = range_start, end = range_end))
+```
+Get bam files
+```{r}
+col0_files <- c("/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/aligned_data/col0_1.genome.bam",
+                "/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/aligned_data/col0_2.genome.bam",
+                "/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/aligned_data/col0_3.genome.bam",
+                "/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/aligned_data/col0_4.genome.bam")
+hiz2_4_files <- c("/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/aligned_data/flacc_OX_1.genome.bam",
+               "/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/aligned_data/flacc_OX_2.genome.bam",
+               "/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/aligned_data/flacc_OX_3.genome.bam",
+               "/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/aligned_data/flacc_OX_4.genome.bam")
+hiz2_2_files <- c("/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/aligned_data/flacc_mutant_1.genome.bam",
+               "/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/aligned_data/flacc_mutant_2.genome.bam",
+               "/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/aligned_data/flacc_mutant_3.genome.bam",
+               "/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/aligned_data/flacc_mutant_4.genome.bam")
+```
+Get ends
+```{r}
+# Function to extract end positions within region
+get_read_ends <- function(bamfile, region) {
+  param <- ScanBamParam(which = region)
+  reads <- readGAlignments(bamfile, param = param)
+  read_ends <- end(reads)
+  # Filter reads that truly end within the region
+  ends_in_region <- read_ends >= start(region) & read_ends <= end(region)
+  return(read_ends[ends_in_region])
+}
+```
+
+
+```{r}
+# Apply function to each set of BAM files
+col0_ends <- unlist(lapply(col0_files, get_read_ends, region = region))
+hiz2_4_ends <- unlist(lapply(hiz2_4_files, get_read_ends, region = region))
+hiz2_2_ends <- unlist(lapply(hiz2_2_files, get_read_ends, region = region))
+```
+Create table
+```{r}
+col0_table <- as.data.frame(table(col0_ends))
+colnames(col0_table) <- c("pos", "col0_count")
+hiz2_4_table <- as.data.frame(table(hiz2_4_ends))
+colnames(hiz2_4_table) <- c("pos", "hiz2_4_count")
+hiz2_2_table <- as.data.frame(table(hiz2_2_ends))
+colnames(hiz2_2_table) <- c("pos", "hiz2_2_count")
+count_table <- merge(merge(col0_table, hiz2_2_table, by = "pos", all = TRUE), hiz2_4_table, by = "pos", all = TRUE)
+count_table <- count_table %>%
+  mutate(pos = as.numeric(as.character(pos))) 
+head(count_table)
+```
+```{r}
+# Reshape to long format
+df_long <- count_table %>%
+  pivot_longer(-pos, names_to = "sample", values_to = "count") %>%
+  drop_na(count)
+
+# Calculate total per sample
+df_long <- df_long %>%
+  mutate(pos = as.numeric(pos)) %>%
+  group_by(sample) %>%
+  mutate(total = sum(count),
+         percent = (count / total) * 100) %>%
+  ungroup()
+
+df_long$sample <- factor(df_long$sample, levels = c("col0_count", "hiz2_4_count", "hiz2_2_count"))
+
+# Define x-axis breaks at positions ending in 0
+x_breaks <- seq(from = range_start, to =range_end, by = 100)
+
+custom_colors.temp <- c(
+    "col0_count" = "#888888",  
+    "hiz2_4_count" = "#AA4499",  
+    "hiz2_2_count" = "#CCAA22"   
+)
+
+sample_names <- c(
+    "col0_count" = "Col-0",  
+    "hiz2_4_count" = expression(italic("hiz2-4")),  
+    "hiz2_2_count" = expression(italic("hiz2-2"))
+)
+```
+
+
+
+```{r}
+count_plot <- ggplot(df_long, aes(x = pos, y = count, color = sample)) +
+  geom_segment(aes(x = pos, xend = pos, y = 0, yend = count), size = 0.5) +
+  geom_point() +
+  scale_x_continuous(breaks = x_breaks) +
+  scale_color_manual(
+    name = "Condition:", 
+    values = custom_colors.temp,
+    labels = sample_names
+  ) +
+  ggtitle(bquote("3' End Positions of Reads Mapping to " * italic(.(gene_name)))) +
+  labs(
+    x = paste("Position on Chr", Chr, sep = ""),
+    y = "Total Counts"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")  
+
+# Add faceting & arrow
+x_pos <- 8918176
+y_arrow <- -5
+
+count_plot.facets <- count_plot +
+  facet_grid(sample ~ ., labeller = labeller(sample = sample_names)) +
+  
+  # Arrow beneath x-axis
+  annotate(
+    "segment",
+    x = x_pos, xend = x_pos,
+    y = y_arrow - 2, yend = y_arrow,
+    arrow = arrow(length = unit(0.3, "cm")),
+    colour = "red",
+    size = 1
+  ) +
+  
+  # Label below arrow
+  annotate(
+    "text",
+    x = x_pos,
+    y = y_arrow - 3,   
+    label = "M6A",
+    colour = "red",
+    size = 4
+  ) +
+  expand_limits(y = y_arrow - 5)
+
+count_plot.facets
+
+pdf(file = "../../Figures/figure_2/three_prime_ends_istl2.pdf",  
+    width = 7, 
+    height = 5)
+count_plot.facets
+dev.off()
+```
+
+
+```{r}
+percent_plot <- ggplot(df_long, aes(x = pos, y = percent, color = sample)) +
+  geom_segment(aes(x = pos, xend = pos, y = 0, yend = percent), size = 0.5) +
+  geom_point() +
+    scale_x_continuous(breaks = x_breaks) +
+      scale_color_manual(
+    name = "Condition:", 
+    values = custom_colors.temp,
+    labels = sample_names
+  ) +
+    ggtitle(bquote("3' End Positions of Reads Mapping to " * italic(.(gene_name))))+
+  labs(x = paste("Position on Chr", Chr, sep =""),
+       y = "Percentage of Total Counts") +
+  theme_minimal()+
+  theme(legend.position = "bottom") 
+
+percent_plot.facets <- percent_plot + facet_grid(sample ~ ., labeller = labeller(sample = sample_names))
+percent_plot.facets
+
+pdf(file = "../../Figures/figure_2/three_prime_ends_percentages_istl2.pdf",  
+    width = 7, 
+    height = 5)
+percent_plot.facets
+dev.off()
+```
+
