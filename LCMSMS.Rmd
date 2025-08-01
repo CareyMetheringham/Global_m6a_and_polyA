@@ -113,3 +113,81 @@ summary(anova_result)
 t.test(table$m6A_ratio[table$geno=="Col-0"], table$m6A_ratio[table$geno=="hiz2-4"], conf.level = 0.95)
 t.test(table$m6A_ratio[table$geno=="Col-0"], table$m6A_ratio[table$geno=="vir-1"], conf.level = 0.95)
 ```
+
+EFS LC-MS/MS
+```{r}
+as_7 <- 1318/169129
+as_8 <- 708/101288
+as_9 <- 513/57528
+as_10 <- 558/78725
+as_11 <- 687/100450
+as_12 <- 745/102436
+efs_lcmsms <- data.frame(genotype=c(
+    'Ler', 'Ler', 'Ler',
+    'efs-1', 'efs-1', 'efs-1'),
+    m6A_ratio=c(as_7, as_8, as_9, as_10, as_11, as_12))
+```
+```{r}
+efs_lcmsms$genotype <- factor(efs_lcmsms$genotype, levels = c("efs-1", "Ler"))
+efs_custom_colors <- c("efs-1" = "#556B2F", "Ler" = "#888888")
+
+efs_dot_And_box <- ggplot(data = efs_lcmsms, aes(y = m6A_ratio, x = genotype, colour = genotype, shape = genotype)) +
+  geom_boxplot(colour = "darkgrey") +
+  geom_beeswarm(size = 3, cex = 2) +
+  theme_classic(base_size = 14) +
+  scale_x_discrete(
+    labels = c(expression(italic("efs-1")), "Ler")
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05)), limits = c(0, NA)) +
+  labs(
+    x = "Genotype",
+    y = "m6A/A ratio",
+    colour = "Genotype",
+    shape = "Genotype"
+  ) +
+  scale_color_manual(
+    values = efs_custom_colors,
+    labels = c(
+      "efs-1" = expression(italic("efs-1")),
+      "Ler" = "Ler"
+    )
+  ) +
+  scale_shape_manual(
+    values = c("efs-1" = 17, "Ler" = 16),
+    labels = c(
+      "efs-1" = expression(italic("efs-1")),
+      "Ler" = "Ler"
+    )
+  ) +
+  guides(
+    colour = guide_legend(title = "Genotype"),
+    shape = guide_legend(title = "Genotype")
+  )
+
+efs_dot_And_box
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_3/efs_lcms.pdf",
+  plot = efs_dot_And_box,
+  width = 5, height = 4, units = "in",
+    bg = "transparent"
+)
+ggsave(
+  filename = "../../Figures/figure_3/efs_lcms.png",
+  plot = efs_dot_And_box,
+  width = 5, height = 4, units = "in" 
+)
+```
+Calculate stats
+```{r}
+# Convert temperature and genotype to factors
+efs_lcmsms$geno <- as.factor(efs_lcmsms$geno)
+
+# ANOVA
+anova_result <- aov(m6A_ratio ~ geno, data = efs_lcmsms)
+summary(anova_result)
+
+# t.test
+t.test(efs_lcmsms$m6A_ratio[efs_lcmsms$geno=="Ler"], efs_lcmsms$m6A_ratio[efs_lcmsms$geno=="efs-1"], conf.level = 0.95)
+```
