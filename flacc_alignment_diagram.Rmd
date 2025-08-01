@@ -131,7 +131,7 @@ for (j in seq_along(reads)) {
 
 # T-DNA insertion markers:
 abline(v = c(21683920), col = "darkred", lty = 2, lwd = 1)
-text(21683920, total_height + 4, "T-DNA", col = "darkred", pos = 2)
+text(21683920, total_height + 4, "GK_867B07", col = "darkred", pos = 2)
 ```
 ```{r}
 pdf("../../Figures/figure_2/old_flacc_read_plot.pdf", width = 8, height = 6)  
@@ -173,7 +173,7 @@ for (j in seq_along(reads)) {
 }
 
 abline(v = c(21683920), col = "darkred", lty = 2, lwd = 1)
-text(21683920, total_height + 4, "T-DNA", col = "darkred", pos = 2)
+text(21683920, total_height + 4, "GK_867B07", col = "darkred", pos = 2)
 
 # ---- Bottom plot: gene model schematic ----
 par(mar = c(2.5, 1.5, 0.5, 0.5))
@@ -275,8 +275,8 @@ for (j in seq_along(reads)) {
 }
 
 abline(v = c(21683920, 21687450), col = "darkred", lty = 2, lwd = 1)
-text(21683920, total_height + 4, "T-DNA", col = "darkred", pos = 2)
-text(21687450, total_height + 4, "T-DNA", col = "darkred", pos = 2)
+text(21683920, total_height + 4, "GK_867B07", col = "darkred", pos = 2)
+text(21687450, total_height + 4, "Salk_126486", col = "darkred", pos = 2)
 
 #Bottom plot: Gene model schematic
 par(mar = c(2.5, 1.5, 0.5, 0.5))
