@@ -26,9 +26,11 @@ flacc_polya_length_change <- fread("~/Downloads/flacc_vs_col0.tsv")
 vir1_polya_length_change <- fread("~/Downloads/vir1_vs_VIRc.tsv")
 ect_polya_length_change <- fread("~/Downloads/ect234_vs_col0.tsv")
 fip37_polya_length_change <- fread("~/Downloads/fip37_vs_col0.tsv")
+new_flacc_polya_length_change <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/polya/flacc_mutant_vs_col0.tsv")
+new_flacc_OX_polya_length_change <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/SIKFLACC/sikflacc_nanopore/data/polya/flacc_OX_vs_col0.tsv")
 ```
 ```{r}
-vir1 <- ggplot(vir1_polya_length_change, aes(x = wass_dir)) +
+vir1 <- ggplot(vir1_polya_length_change[vir1_polya_length_change$fdr<0.05,], aes(x = wass_dir)) +
   geom_histogram(colour = "white", bins = 50, fill = "#009988") +
   xlim(-50, 50) +
   scale_y_continuous(expand = c(0, 0)) +           
@@ -41,19 +43,19 @@ vir1
 ```
 ```{r}
 ggsave(
-  filename = "../../Figures/figure_2/all_vir1_polya_length_changes.pdf",
+  filename = "../../Figures/figure_2/sig_vir1_polya_length_changes.pdf",
   plot = vir1,
   width = 6, height = 5, units = "in" 
 )
 ggsave(
-  filename = "../../Figures/figure_2/all_vir1_polya_length_changes.png",
+  filename = "../../Figures/figure_2/sig_vir1_polya_length_changes.png",
   plot = vir1,
   width = 6, height = 5, units = "in" 
 )
 ```
 
 ```{r}
-flacc <- ggplot(flacc_polya_length_change, aes(x=wass_dir)) +
+flacc <- ggplot(flacc_polya_length_change[flacc_polya_length_change$fdr<0.05,], aes(x=wass_dir)) +
     geom_histogram(colour="white",bins=50, fill="#AA4499")+
     xlim(-50, 50) +
   scale_y_continuous(expand = c(0, 0)) +          
@@ -66,19 +68,72 @@ flacc
 ```
 ```{r}
 ggsave(
-  filename = "../../Figures/figure_2/all_hiz2_4_polya_length_changes.pdf",
+  filename = "../../Figures/figure_2/sig_old_hiz2_4_polya_length_changes.pdf",
   plot = flacc,
   width = 6, height = 5, units = "in" 
 )
 ggsave(
-  filename = "../../Figures/figure_2/all_hiz2_4_polya_length_changes.png",
+  filename = "../../Figures/figure_2/sig_old_hiz2_4_polya_length_changes.png",
   plot = flacc,
   width = 6, height = 5, units = "in" 
 )
 ```
 
+New Flacc data
 ```{r}
-fip <- ggplot(fip37_polya_length_change, aes(x=wass_dir)) +
+flacc_mutant <- ggplot(new_flacc_polya_length_change[new_flacc_polya_length_change$fdr<0.05,], aes(x=wass_dir)) +
+    geom_histogram(colour="white",bins=50, fill="#CCAA22")+
+    xlim(-50, 50) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 1200)) +         
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black") +  
+  theme_classic(base_size = 15) +
+  xlab("Difference in mean poly(A) tail length") +
+  ylab("Genes") 
+
+flacc_mutant
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_2/sig_new_hiz2_2_polya_length_changes.pdf",
+  plot = flacc_mutant,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_2/sig_new_hiz2_2_polya_length_changes.png",
+  plot = flacc_mutant,
+  width = 6, height = 5, units = "in" 
+)
+```
+
+```{r}
+flacc_OX <- ggplot(new_flacc_OX_polya_length_change[new_flacc_OX_polya_length_change$fdr<0.05,], aes(x=wass_dir)) +
+    geom_histogram(colour="white",bins=50, fill="#AA4499")+
+    xlim(-50, 50) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 1200)) +          
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black") +  
+  theme_classic(base_size = 15) +
+  xlab("Difference in mean poly(A) tail length") +
+  ylab("Genes") 
+
+flacc_OX
+```
+
+```{r}
+ggsave(
+  filename = "../../Figures/figure_2/sig_new_hiz2_4_polya_length_changes.pdf",
+  plot = flacc_OX,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_2/sig_new_hiz2_4_polya_length_changes.png",
+  plot = flacc_OX,
+  width = 6, height = 5, units = "in" 
+)
+```
+
+
+```{r}
+fip <- ggplot(fip37_polya_length_change[fip37_polya_length_change$fdr < 0.05,], aes(x=wass_dir)) +
     geom_histogram(colour="white",bins=50, fill="#0077BB")+
     xlim(-50, 50) +
   scale_y_continuous(expand = c(0, 0)) +         
@@ -90,7 +145,7 @@ fip <- ggplot(fip37_polya_length_change, aes(x=wass_dir)) +
 fip
 ```
 ```{r}
-ect <- ggplot(ect_polya_length_change, aes(x=wass_dir)) +
+ect <- ggplot(ect_polya_length_change[ect_polya_length_change$fdr<0.05,], aes(x=wass_dir)) +
     geom_histogram(colour="white",bins=50, fill="#EE7733")+
     xlim(-50, 50) +
   scale_y_continuous(expand = c(0, 0)) +           # removes bottom gap
