@@ -8,6 +8,7 @@ library(dplyr)
 library(FSA)
 library(ggbeeswarm)
 library(stringr)
+library(pheatmap)
 ```
 ```{r colour bar, echo=FALSE, fig.height=2, fig.width=13}
 palette <- c(
@@ -358,6 +359,68 @@ Plot the comparison of the mean percentage modified Col-0 and hiz2-2
 t.test(summary_table_means.filtered$mean_percent_modified_col0, summary_table_means.filtered$mean_percent_modified_mutant, conf.level = 0.95)
 t.test(summary_table_means.filtered$mean_percent_modified_col0, summary_table_means.filtered$mean_percent_modified_OX, conf.level = 0.95)
 ```
+
+What sites are there that are unique to each?
+```{r}
+summary_table.mods <- summary_table[, grep("\\.percent_modified$", names(summary_table))]
+#summary_table.mods <- summary_table.mods[summary_table_means$mean_Nvalid_cov>=20,]
+summary_table.mods <- summary_table.mods[(summary_table_means$mean_Nvalid_cov_col0>=20 &
+                                              summary_table_means$mean_Nvalid_cov_mutant>=20 &
+                                              summary_table_means$mean_Nvalid_cov_OX>=20),]
+#summary_table.mods <- summary_table.mods[rowSums(summary_table.mods != 0, na.rm = TRUE) > 0, ]
+summary_table.mods <- summary_table.mods[rowSums(summary_table.mods > 8, na.rm = TRUE) > 0, ]
+colnames(summary_table.mods) <- sub("\\.percent_modified$", "", colnames(summary_table.mods))
+head(summary_table.mods)
+```
+Find columns that are unique to flacc_OX in this table
+```{r}
+# Identify col0 and flacc_OX columns
+col0_cols <- grep("^col0_", names(summary_table.mods), value = TRUE)
+flacc_OX_cols <- grep("^flacc_OX_", names(summary_table.mods), value = TRUE)
+
+threshold <- 1
+unique_flacc_OX <- summary_table.mods[
+  rowSums(summary_table.mods[col0_cols] > threshold) == 0 &
+  rowSums(summary_table.mods[flacc_OX_cols] > threshold) > 0,
+]
+unique_col0 <- summary_table.mods[
+  rowSums(summary_table.mods[flacc_OX_cols] > threshold) == 0 &
+  rowSums(summary_table.mods[col0_cols] > threshold) > 0,
+]
+```
+Is there GO enrichment in these unique gene sets?
+
+Venn diagram of the overlap
+```{r}
+library(eulerr)
+# Define the sets
+fit <- euler(c(
+  "Col-0" = 192 ,   # unique + overlap
+  "hiz2-4" = 447 ,
+  "Col-0&hiz2-4" = 21087
+))
+# Plot with custom colours
+plot(fit,
+     fills = list(fill = c("gray30", "#AA4499"), alpha = 0.6),
+     edges = "gray30",
+     labels = list(col = "black", font = 2),
+     quantities = TRUE)
+```
+Calculate the means of the modified data
+```{r}
+summary_table.mods.means <- summary_table.mods %>%
+  rowwise() %>%
+  mutate(
+    mean_col0 = mean(c_across(starts_with("col0_")), na.rm = TRUE),
+    mean_mutant = mean(c_across(starts_with("flacc_mutant_")), na.rm = TRUE),
+    mean_OX = mean(c_across(starts_with("flacc_OX_")), na.rm = TRUE)
+  )
+head(summary_table.mods.means)
+```
+
+
+
+Plot changes
 Plot the comparison of the mean percentage modified Col-0 and hiz2-2
 ```{r}
 df2 <- summary_table_means.filtered
@@ -523,5 +586,49 @@ count_non_na
 count_higher / count_non_na * 100
 count_lower / count_non_na * 100
 count_equal / count_non_na * 100
+```
+
+
+
+Plot a heatmap
+```{r}
+summary_table.mods[] <- lapply(summary_table.mods, as.numeric)
+# Create sparse matrix
+mat_sparse <- as(Matrix(as.matrix(summary_table.mods), sparse = TRUE), "dgCMatrix")
+
+# Convert the entire sparse matrix to dense (no sampling)
+mat_dense <- as.matrix(mat_sparse)
+
+# Replace NA/NaN/Inf with 0
+mat_dense[!is.finite(mat_dense)] <- 0
+
+# Optional: set rownames (if you have meaningful row IDs in summary_table.mods)
+rownames(mat_dense) <- rownames(summary_table.mods)
+```
+
+
+```{r}
+# Plot heatmap with pheatmap
+heatmap <- pheatmap(mat_dense,
+         scale = "none",
+         show_rownames = FALSE,
+         labels_col = c("Col-0 1", "Col-0 2", "Col-0 3", "Col-0 4",
+                        expression(italic("hiz2-4")*1), expression(italic("hiz2-4")*2), expression(italic("hiz2-4")*3), expression(italic("hiz2-4")*4),
+                         expression(italic("hiz2-2")*1), expression(italic("hiz2-2")*2), expression(italic("hiz2-2")*3), expression(italic("hiz2-2")*4)),
+         color = colorRampPalette(c("white", "firebrick4"))(50))
+heatmap
+```
+Save the heatmap to file
+```{r}
+ggsave(
+  filename = "../../Figures/figure_2/m6a_heatmap.pdf",
+  plot = heatmap,
+  width = 5, height = 5, units = "in"
+)
+ggsave(
+  filename = "../../Figures/figure_2/m6a_heatmap.png",
+  plot = heatmap,
+  width = 5, height = 5, units = "in" 
+)
 ```
 
