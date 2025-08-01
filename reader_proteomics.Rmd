@@ -38,23 +38,13 @@ barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
 
 Read in the proteomics data
 ```{r}
-ect_vs_col0 <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/ect2_vs_col0.tsv")
-hakai_vs_col0 <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/hakai_vs_col0.tsv")
-u2b_vs_col0 <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/u2b_vs_col0.tsv")
-vir_vs_col0 <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/vir1_vs_col0.tsv")
-mta_vs_col0 <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/mta_vs_col0.tsv")
-mta_vs_mtahakai <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/MTA_vs_MTAhakai.tsv")
+ect_vs_col0.raw <- fread("/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/proteomics/proteus_output/ect2_vs_col0.tsv")
 ```
 
 Tidy proteomics data
 ```{r}
 tables <- list(
-  ect_vs_col0 = ect_vs_col0,
-  hakai_vs_col0 = hakai_vs_col0,
-  mta_vs_mtahakai = mta_vs_mtahakai,
-  mta_vs_col0 = mta_vs_col0,
-  vir_vs_col0 = vir_vs_col0,
-  u2b_vs_col0 = u2b_vs_col0
+  ect_vs_col0.raw = ect_vs_col0.raw
 )
 for (name in names(tables)) {
     tables[[name]][, protein := sapply(strsplit(protein, ".", fixed = TRUE), `[`, 1)]
@@ -81,27 +71,20 @@ Protein lists
 ```{r}
 mrna_interacting <- fread("../../Proteomics/mrna_interacting.txt")
 ects <- fread("../../Proteomics/ect_proteins.txt")
-writer_complex <- c("AT5G01160", "AT3G05680", "AT5G53440", "AT4G10760", "AT4G09980", "AT3G54170")
 ```
-Annotations from Gordon's list
 
-LogFC plots
-
-#U2BL
 ```{r}
-ect_vs_col0 <- merge(ect_vs_col0, ects, by = "protein", all.x = TRUE)
-
+ect_vs_col0 <- ect_vs_col0.raw
+ect_vs_col0 <- merge(ect_vs_col0.raw, ects, by = "protein", all.x = TRUE)
 # Add a 'category' column (ECT or other)
 ect_vs_col0$category <- ifelse(!is.na(ect_vs_col0$name), "ECT", "other")
-
 # Colour column, set NA for "other"
 ect_vs_col0$colour <- ifelse(ect_vs_col0$category == "ECT", "ECT", NA)
-
 # Define color vector
 category_colors <- c("ECT" = "#EE7733")
 
 # Plot
-plot_ect_vs_col0 <- ggplot(
+plot_ects <- ggplot(
   data = ect_vs_col0[ect_vs_col0$ECT >= 3, ],
   aes(
     y = -log10(pval),
@@ -113,30 +96,195 @@ plot_ect_vs_col0 <- ggplot(
 ) +
   geom_point(shape = 21, colour = "white") +
   theme_classic(base_size = 15) +
-  geom_text_repel(size = 5, max.overlaps = Inf, hjust = 1.2) +
+  geom_text_repel(size = 4, max.overlaps = Inf, hjust = 1.2) +
   xlab("Median log2 Fold Change") +
   ylab("-log10 p value") +
-  ggtitle("ECT2 IP") +
-  scale_fill_manual(
-    values = category_colors,
-    name = "Category"
-  ) +
-  theme(legend.position = c(.2, .7)) +
-  guides(size = "none", fill = guide_legend(title = "Category"))
+  scale_fill_manual(values = category_colors) +
+  theme(legend.position = "none")
 
-plot_ect_vs_col0
+plot_ects
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_5/ect234_ects.pdf",
+  plot = plot_ects,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_5/ect234_ects.png",
+  plot = plot_ects,
+  width = 6, height = 5, units = "in" 
+)
+```
+Plot with the PAB proteins coloured
+```{r}
+pabs <- data.frame(protein = c("AT4G34110","AT2G23350","AT1G49760"),
+                   name = c("PAB2","PAB4","PAB8"))
+ect_vs_col0 <- merge(ect_vs_col0.raw, pabs, by = "protein", all.x = TRUE)
+ect_vs_col0$category <- ifelse(!is.na(ect_vs_col0$name), "PAB", "other")
+# Add special category for ECT2
+ect_vs_col0$category[ect_vs_col0$protein == "AT3G13460"] <- "ECT2"
+
+# Define colors
+category_colors <- c(
+  "PAB" = "#DD3377",   # pink for PABs
+  "ECT2" = "#EE7733",   # orange for ECT2
+  "other" = "#888888"   # grey for everything else
+)
+
+plot_pabs <- ggplot(
+  data = ect_vs_col0[ect_vs_col0$ECT >= 3, ],
+  aes(
+    y = -log10(pval),
+    x = median_logFC,
+    label = ifelse(category %in% c("PAB","ECT2"), 
+                   ifelse(category=="ECT2", "ECT2", name), ""), 
+    fill = category,
+    size = median_av_exprs
+  )
+) +
+  geom_point(shape = 21, colour = "white") +
+  geom_text_repel(size = 4, max.overlaps = Inf, hjust = 1.2) +
+  scale_fill_manual(values = category_colors) +
+  theme_classic(base_size = 15) +
+  theme(legend.position = "none") +
+  xlab("Median log2 Fold Change") +
+  ylab("-log10 p value")
+
+plot_pabs
 ```
 
 
 ```{r}
 ggsave(
-  filename = "../../Figures/figure_4/ect234.pdf",
-  plot = plot_ect_vs_col0,
+  filename = "../../Figures/figure_5/ect234_pabs.pdf",
+  plot = plot_pabs,
   width = 6, height = 5, units = "in" 
 )
 ggsave(
-  filename = "../../Figures/figure_4/ect234.png",
-  plot = plot_ect_vs_col0,
+  filename = "../../Figures/figure_5/ect234_pabs.png",
+  plot = plot_pabs,
+  width = 6, height = 5, units = "in" 
+)
+```
+
+Stress granule proteins
+```{r}
+rbp_proteins <- data.frame(
+  protein = c(
+    "AT5G54900", "AT1G11650", "AT4G27000", "AT1G49600",
+    "AT3G19130", "AT1G47490", "AT1G47500", "AT1G54080",
+    "AT1G17370", "AT3G14100", "AT4G03110"
+  ),
+  name = c(
+    "RBP45A", "RBP45B", "RBP45C", "RBP45A",
+    "RBP47A", "RBP47B", "RBP47C", "RBP47C",
+    "UBP1A", "UBP1B", "BRN1"
+  ),
+  stringsAsFactors = FALSE
+)
+ect_vs_col0 <- merge(ect_vs_col0.raw, rbp_proteins, by = "protein", all.x = TRUE)
+
+ect_vs_col0$category <- ifelse(!is.na(ect_vs_col0$name), "Stress", "other")
+# Add special category for ECT2
+ect_vs_col0$category[ect_vs_col0$protein == "AT3G13460"] <- "ECT2"
+
+# Define colors
+category_colors <- c(
+  "Stress" = "#004488",  
+  "ECT2" = "#EE7733",   # orange for ECT2
+  "other" = "#888888"   # grey for everything else
+)
+
+plot_stress <- ggplot(
+  data = ect_vs_col0[ect_vs_col0$ECT >= 3, ],
+  aes(
+    y = -log10(pval),
+    x = median_logFC,
+    label = ifelse(category %in% c("Stress","ECT2"), 
+                   ifelse(category=="ECT2", "ECT2", name), ""), 
+    fill = category,
+    size = median_av_exprs
+  )
+) +
+  geom_point(shape = 21, colour = "white") +
+  geom_text_repel(size = 4, max.overlaps = Inf, hjust = 1.2) +
+  scale_fill_manual(values = category_colors) +
+  theme_classic(base_size = 15) +
+  theme(legend.position = "none") +
+  xlab("Median log2 Fold Change") +
+  ylab("-log10 p value")
+
+plot_stress
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_5/ect234_stress.pdf",
+  plot = plot_stress,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_5/ect234_stress.png",
+  plot = plot_stress,
+  width = 6, height = 5, units = "in" 
+)
+```
+Stress granule proteins
+```{r}
+alba_proteins <- data.frame(
+  protein = c(
+    "AT1G29250", "AT2G34160", "AT3G04620", "AT1G76010",
+    "AT1G20220", "AT3G07030" 
+  ),
+  name = c(
+    "ALBA1", "ALBA2", "ALBA3", "ALBA4",
+    "ALBA5", "ALBA6"
+  ),
+  stringsAsFactors = FALSE
+)
+ect_vs_col0 <- merge(ect_vs_col0.raw, alba_proteins, by = "protein", all.x = TRUE)
+
+ect_vs_col0$category <- ifelse(!is.na(ect_vs_col0$name), "ALBA", "other")
+# Add special category for ECT2
+ect_vs_col0$category[ect_vs_col0$protein == "AT3G13460"] <- "ECT2"
+
+# Define colors
+category_colors <- c(
+  "ALBA" = "#0077BB",  
+  "ECT2" = "#EE7733",   # orange for ECT2
+  "other" = "#888888"   # grey for everything else
+)
+
+plot_alba <- ggplot(
+  data = ect_vs_col0[ect_vs_col0$ECT >= 3, ],
+  aes(
+    y = -log10(pval),
+    x = median_logFC,
+    label = ifelse(category %in% c("ALBA","ECT2"), 
+                   ifelse(category=="ECT2", "ECT2", name), ""), 
+    fill = category,
+    size = median_av_exprs
+  )
+) +
+  geom_point(shape = 21, colour = "white") +
+  geom_text_repel(size = 3, max.overlaps = Inf, hjust = 1.2) +
+  scale_fill_manual(values = category_colors) +
+  theme_classic(base_size = 15) +
+  theme(legend.position = "none") +
+  xlab("Median log2 Fold Change") +
+  ylab("-log10 p value")
+
+plot_alba
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_5/ect234_alba.pdf",
+  plot = plot_alba,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_5/ect234_alba.png",
+  plot = plot_alba,
   width = 6, height = 5, units = "in" 
 )
 ```
