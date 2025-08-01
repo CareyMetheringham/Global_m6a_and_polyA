@@ -1,0 +1,86 @@
+---
+title: "Draw Protein Diagram"
+---
+
+```{r}
+library(ggplot2)
+library(drawProteins)
+```
+
+
+```{r}
+# If you have a UniProt ID for HIZ2
+protein <- drawProteins::get_features("Q9LV05") 
+
+draw_canvas(protein) 
+
+# For truncation, just draw a second bar of length (full_length - 80)
+```
+```{r}
+protein_length <- 358
+trunc_length <- protein_length - 80  # truncated length
+
+# Chains data: WT (order=1), Truncated (order=2)
+chains <- data.frame(
+  entryName   = "HIZ2",
+  type        = "CHAIN",
+  description = c("Full length HIZ2", "Truncated HIZ2"),
+  begin       = 1,
+  end         = c(protein_length, trunc_length),
+  length      = protein_length,
+  order       = c(1, 2)
+)
+
+# Domains for WT (order=1)
+wt_domains <- data.frame(
+  entryName   = "HIZ2",
+  type        = "DOMAIN",
+  description = c("Disordered", "C2H2-type", "C2H2-type"),
+  begin       = c(1, 126, 165),
+  end         = c(39, 153, 192),
+  length      = protein_length,
+  order       = 1
+)
+
+# Domains for Truncated (order=2), clip domain ends to trunc_length
+trunc_domains <- wt_domains
+trunc_domains$order <- 2
+trunc_domains$end <- pmin(trunc_domains$end, trunc_length)
+
+# Remove any domains that are fully beyond truncation (end < begin)
+trunc_domains <- trunc_domains[trunc_domains$end >= trunc_domains$begin, ]
+
+# Combine domains
+all_domains <- rbind(wt_domains, trunc_domains)
+
+# Plot
+protein_plot <- draw_canvas(chains) %>%
+  draw_chains(chains) %>%
+  draw_domains(all_domains) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )+
+    theme(legend.position = "none")+
+    theme(ggplot2::element_text(size = 4)) 
+
+protein_plot
+```
+
+```{r}
+ggsave(
+  filename = "../../Figures/figure_2/protein_truncation.pdf",
+  plot = protein_plot,
+  width = 6, height = 4, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_2/protein_truncation.png",
+  plot = protein_plot,
+  width = 6, height = 4, units = "in" 
+)
+```
+
