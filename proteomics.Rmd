@@ -84,7 +84,7 @@ sheet_names <- excel_sheets(excel_file)
 # Read and extract the first 3 columns from each sheet
 sheet_data_list <- lapply(sheet_names, function(sheet) {
   read_excel(excel_file, sheet = sheet) %>%
-    select(1:5)
+    dplyr::select(1:5)
 })
 
 # Optionally, name the list elements by sheet name
@@ -139,7 +139,7 @@ plot_u2b_vs_col0 <- ggplot(data = u2b_vs_col02[u2b_vs_col02$U2B>=3,], aes(y=-log
     #xlim(-4,12)+
     xlab('Median log2 Fold Change')+
     ylab('-log10 p value')+
-    ggtitle('U2B" IP')+
+    #ggtitle('U2B" IP')+
     scale_fill_manual(
         values = category_colors,
         labels = new_labels, 
@@ -192,7 +192,7 @@ plot_hakai_vs_col0 <- ggplot(data = hakai_vs_col0[hakai_vs_col0$HAKAI >= 3,],
   geom_text_repel(aes(label = name, hjust = 1.2), size = 5, max.overlaps = Inf) +
   xlab('Median log2 Fold Change') +
   ylab('-Log10 p value') +
-  ggtitle("HAKAI IP") +
+  #ggtitle("HAKAI IP") +
   scale_fill_identity(guide = "none") +
   theme(legend.position = "none") +
   guides(size = "none", colour = "none")
@@ -229,7 +229,7 @@ plot_mta_vs_col0 <- ggplot(data = mta_vs_col0[mta_vs_col0$MTA>=3,], aes(y=-log10
   geom_text_repel(aes(label = name, hjust = 1.3), size = 5, max.overlaps = Inf) +
   xlab('Median log2 Fold Change') +
   ylab('-Log10 p value') +
-  ggtitle("MTA vs Col0 IP") +
+  #ggtitle("MTA vs Col0 IP") +
   scale_fill_identity(guide = "none") +
   theme(legend.position = "none") +
   guides(size = "none", colour = "none")
@@ -281,7 +281,7 @@ plot_vir_vs_col0 <- ggplot(data = vir_vs_col0[vir_vs_col0$VIR >= 3,],
   geom_text_repel(aes(label = label_plot, hjust = 1.3), size = 5, max.overlaps = Inf, na.rm = TRUE) +
   xlab('Median log2 Fold Change') +
   ylab('-Log10 p value') +
-  ggtitle("VIR vs Col0 IP") +
+  #ggtitle("VIR vs Col0 IP") +
   scale_fill_identity(
     guide = "legend",
     breaks = "#7f47ca",
