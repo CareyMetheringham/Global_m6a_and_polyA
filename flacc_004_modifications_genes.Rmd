@@ -1,0 +1,350 @@
+---
+title: "FLACC results"
+---
+Load libraries
+```{r}
+library(ggplot2)
+library(dplyr)
+library(FSA)
+library(ggbeeswarm)
+library(stringr)
+library(pheatmap)
+library(Matrix)
+library(readr)
+```
+```{r colour bar, echo=FALSE, fig.height=2, fig.width=13}
+palette <- c(
+ # Writers
+  "MTA"     = "#004488",
+  "VIR"  = "#009988",
+  "FIP37"   = "#0077BB",
+  "hiz2-4" = "#AA4499",
+  "hiz2-2"    = "#CCAA22",
+  "HAKAI" = "#556B2F",
+  #Readers
+  "ECT"     = "#EE7733",
+  "CPSF30"  = "#DD3377",
+  #Other
+  "U2B"     = "#CC3311",
+  "Col-0"    = "#888888"
+)
+barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
+```
+
+Modifications on a per site basis aligned to transcriptome
+```{r}
+#flacc_mutant_1 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_mutant_1.aligned.bed", header=FALSE)
+#flacc_mutant_2 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_mutant_2.aligned.bed", header=FALSE)
+flacc_mutant_3 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_mutant_3.aligned.bed", header=FALSE)
+flacc_mutant_4 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_mutant_4.aligned.bed", header=FALSE)
+```
+
+```{r}
+flacc_OX_1 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_OX_1.aligned.bed", header=FALSE)
+flacc_OX_2 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_OX_2.aligned.bed", header=FALSE)
+flacc_OX_3 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_OX_3.aligned.bed", header=FALSE)
+flacc_OX_4 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/flacc_OX_4.aligned.bed", header=FALSE)
+```
+```{r}
+col0_1 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/col0_1.aligned.bed", header=FALSE)
+col0_2 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/col0_2.aligned.bed", header=FALSE)
+col0_3 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/col0_3.aligned.bed", header=FALSE)
+col0_4 <- read.delim("~/Documents/Reader_Writer_Paper/SIKFLACC/modkit/col0_4.aligned.bed", header=FALSE)
+```
+Get colnames
+```{r}
+bed_colnames <- c(
+  "transcript",
+  "start",
+  "end",
+  "mod_code_motif",
+  "score",
+  "strand",
+  "start_compat",
+  "end_compat",
+  "color",
+  "Nvalid_cov",
+  "percent_modified",
+  "Nmod",
+  "Ncanonical",
+  "Nother_mod",
+  "Ndelete",
+  "Nfail",
+  "Ndiff",
+  "Nnocall"
+)
+set_colnames <- function(df_list, new_colnames) {
+  lapply(df_list, function(df) {
+    colnames(df) <- new_colnames
+    return(df)
+  })
+}
+```
+Make list and rename
+```{r}
+bed_list <- list(
+  col0_1 = col0_1,
+  col0_2 = col0_2,
+  col0_3 = col0_3,
+  col0_4 = col0_4,
+  #flacc_mutant_1 = flacc_mutant_1,
+  #flacc_mutant_2 = flacc_mutant_2,
+  flacc_mutant_3 = flacc_mutant_3,
+  flacc_mutant_4 = flacc_mutant_4,
+  flacc_OX_1 = flacc_OX_1,
+  flacc_OX_2 = flacc_OX_2,
+  flacc_OX_3 = flacc_OX_3,
+  flacc_OX_4 = flacc_OX_4
+)
+bed_list <- set_colnames(bed_list, bed_colnames)
+```
+
+Filter the sites
+```{r}
+filter_modification_tables <- function(df_list, min_percent = 0.01, min_coverage = 20) {
+  filtered_list <- lapply(names(df_list), function(name) {
+    df <- df_list[[name]]
+    df_filtered <- df[df$percent_modified > min_percent & df$Nvalid_cov >= min_coverage, ]
+    return(df_filtered)
+  })
+  names(filtered_list) <- paste0(names(df_list), ".filtered")
+  return(filtered_list)
+}
+filtered_bed_tables <- filter_modification_tables(bed_list)
+```
+
+Make a summary table
+```{r}
+summarise_table_list <- function(df_list) {
+  key_cols <- c("transcript", "start", "end", "mod_code_motif", "strand")
+  
+  processed_list <- lapply(names(df_list), function(name) {
+    df <- df_list[[name]]
+    
+    # Trim the table name
+    short_name <- str_remove(name, "\\.filtered.*")  # removes ".filtered.annotated" etc
+    
+    df %>%
+      dplyr::select(all_of(c(key_cols, "Nvalid_cov", "percent_modified"))) %>%
+      dplyr::rename(
+        !!paste0(short_name, ".Nvalid_cov") := Nvalid_cov,
+        !!paste0(short_name, ".percent_modified") := percent_modified
+      )
+  })
+  
+  # Merge all tables by the key columns
+  merged_df <- Reduce(function(x, y) full_join(x, y, by = key_cols), processed_list)
+  
+  return(merged_df)
+}
+summary_table <- summarise_table_list(bed_list)
+head(summary_table)
+```
+Compute the per site means
+```{r}
+summary_table_means <- summary_table %>%
+  mutate(
+    mean_Nvalid_cov = rowMeans(dplyr::select(., ends_with(".Nvalid_cov")), na.rm = TRUE),
+    mean_percent_modified = rowMeans(dplyr::select(., ends_with(".percent_modified")), na.rm = TRUE),
+
+    mean_Nvalid_cov_col0 = rowMeans(dplyr::select(., matches("^col0.*\\.Nvalid_cov$")), na.rm = TRUE),
+    mean_percent_modified_col0 = rowMeans(dplyr::select(., matches("^col0.*\\.percent_modified$")), na.rm = TRUE),
+
+    mean_Nvalid_cov_mutant = rowMeans(dplyr::select(., matches("^flacc_mutant.*\\.Nvalid_cov$")), na.rm = TRUE),
+    mean_percent_modified_mutant = rowMeans(dplyr::select(., matches("^flacc_mutant.*\\.percent_modified$")), na.rm = TRUE),
+
+    mean_Nvalid_cov_OX = rowMeans(dplyr::select(., matches("^flacc_OX.*\\.Nvalid_cov$")), na.rm = TRUE),
+    mean_percent_modified_OX = rowMeans(dplyr::select(., matches("^flacc_OX.*\\.percent_modified$")), na.rm = TRUE)
+  )
+head(summary_table_means)
+```
+Filter the table by the mean coverage
+```{r}
+summary_table_means.filtered <- summary_table_means[summary_table_means$mean_Nvalid_cov>=20,]
+summary_table_means.filtered <- summary_table_means.filtered[summary_table_means$mean_percent_modified_col0>0,]
+# write to table
+write_csv(summary_table_means.filtered, file = "flacc004_modifications.transcripts.csv")
+```
+Plot the comparison of the mean percentage modified Col-0 and hiz2-2
+```{r}
+t.test(summary_table_means.filtered$mean_percent_modified_col0, summary_table_means.filtered$mean_percent_modified_mutant, conf.level = 0.95)
+t.test(summary_table_means.filtered$mean_percent_modified_col0, summary_table_means.filtered$mean_percent_modified_OX, conf.level = 0.95)
+```
+
+What sites are there that are unique to each?
+```{r}
+summary_table.mods <- summary_table[, c("transcript", grep("\\.percent_modified$", names(summary_table), value = TRUE))]
+
+summary_table.mods <- summary_table.mods[
+  (summary_table_means$mean_Nvalid_cov_col0 >= 20 &
+     summary_table_means$mean_Nvalid_cov_mutant >= 20 &
+     summary_table_means$mean_Nvalid_cov_OX >= 20), ]
+summary_table.mods <- summary_table.mods[
+  rowSums(summary_table.mods[,-1] > 8, na.rm = TRUE) > 0, ]
+colnames(summary_table.mods)[-1] <- sub("\\.percent_modified$", "", colnames(summary_table.mods)[-1])
+
+head(summary_table.mods)
+```
+Find columns that are unique to flacc_OX in this table
+```{r}
+# Identify col0 and flacc_OX columns
+col0_cols <- grep("^col0_", names(summary_table.mods), value = TRUE)
+flacc_OX_cols <- grep("^flacc_OX_", names(summary_table.mods), value = TRUE)
+
+threshold <- 1
+unique_flacc_OX <- summary_table.mods[
+  rowSums(summary_table.mods[col0_cols] > threshold) == 0 &
+  rowSums(summary_table.mods[flacc_OX_cols] > threshold) > 0,
+]
+unique_col0 <- summary_table.mods[
+  rowSums(summary_table.mods[flacc_OX_cols] > threshold) == 0 &
+  rowSums(summary_table.mods[col0_cols] > threshold) > 0,
+]
+```
+
+What are the sites that are unique to hiz2-4? Any GO enrichment?
+```{r}
+library(clusterProfiler)
+library(org.At.tair.db)
+unique_flacc_OX$gene_id <- sub("\\..*", "", unique_flacc_OX$transcript)
+background_genes <- sub("\\..*", "", summary_table.mods$transcript)
+#How many genes are there?
+length(unique(unique_flacc_OX$gene_id))
+# Perform GO enrichment analysis
+ego1 <- enrichGO(
+  gene          = unique_flacc_OX$gene_id,
+  OrgDb         = org.At.tair.db,
+  universe      = background_genes,
+  keyType       = "TAIR",
+  ont           = "CC",           # Options: "BP", "MF", "CC", or "ALL"
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.2,
+  readable      = TRUE
+)
+# View the top enriched GO terms
+head(ego1, 20)
+dotplot(ego1, showCategory = 20)
+```
+Col-0 unique
+```{r}
+unique_col0$gene_id <- sub("\\..*", "", unique_col0$transcript)
+# Perform GO enrichment analysis
+ego2 <- enrichGO(
+  gene          = unique_col0$gene_id,
+  OrgDb         = org.At.tair.db,
+  keyType       = "TAIR",
+  ont           = "BP",           # Options: "BP", "MF", "CC", or "ALL"
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.2,
+  readable      = TRUE
+)
+# View the top enriched GO terms
+head(ego2, 20)
+dotplot(ego2, showCategory = 20)
+```
+
+What are the sites that change?
+What are the sites that are highly modified in Col0 & still have some modification in hiz2-2
+
+
+Calculate the means of the modified data
+```{r}
+summary_table.mods.means <- summary_table.mods %>%
+  rowwise() %>%
+  mutate(
+    mean_col0 = mean(c_across(starts_with("col0_")), na.rm = TRUE),
+    mean_mutant = mean(c_across(starts_with("flacc_mutant_")), na.rm = TRUE),
+    mean_OX = mean(c_across(starts_with("flacc_OX_")), na.rm = TRUE)
+  )
+head(summary_table.mods.means)
+```
+
+Plot the comparison of the mean percentage modified Col-0 and hiz2-2
+```{r}
+df2 <- summary_table.mods.means
+df2$higher_in_x <- df2$mean_col0 < df2$mean_mutant
+df2$lower_in_x <- df2$mean_col0 > df2$mean_mutant
+
+hiz2_2_sites <- ggplot(df2, aes(x = mean_col0,
+               y = mean_mutant,
+               color = lower_in_x)) +
+  geom_point(alpha = 0.3, show.legend = TRUE) +  
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+  scale_color_manual(values = c("TRUE" = "#CCAA22", "FALSE" = "grey50")) +
+  theme_minimal(base_size = 10) +
+  labs(
+    x = "Mean % Modified (Col-0)",
+    y = "Mean % Modified (hiz2-2)",
+    size = "Mean Coverage"
+  ) +
+  theme(
+    legend.position = "top",
+    panel.grid.minor = element_blank(),
+    legend.bmutant = "horizontal"
+  ) +
+  guides(
+    color = "none",          
+    size = "none"
+  )
+
+table(df2$higher_in_x)
+table(df2$lower_in_x)
+```
+Plot the comparison of the mean percentage modified Col-0 and hiz2-4
+```{r}
+df <- summary_table.mods.means
+df$higher_in_x <- df$mean_col0 < df$mean_OX
+df$lower_in_x <- df$mean_col0 > df$mean_OX
+
+hiz2_4_sites <- ggplot(df, aes(x = mean_col0,
+               y = mean_OX,
+               color = higher_in_x)) +
+  geom_point(alpha = 0.3, show.legend = TRUE) +  
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+  scale_color_manual(values = c("TRUE" = "#AA4499", "FALSE" = "grey50")) +
+  theme_minimal(base_size = 10) +
+  labs(
+    x = "Mean % Modified (Col-0)",
+    y = "Mean % Modified (hiz2-4)",
+    size = "Mean Coverage"
+  ) +
+  theme(
+    legend.position = "top",
+    panel.grid.minor = element_blank(),
+    legend.box = "horizontal"
+  ) +
+  guides(
+    color = "none",          
+    size = "none"
+ )
+
+table(df$higher_in_x)
+table(df$lower_in_x)
+```
+
+Plot a heatmap
+```{r}
+summary_table.mods[] <- lapply(summary_table.mods, as.numeric)
+# Create sparse matrix
+mat_sparse <- as(Matrix(as.matrix(summary_table.mods), sparse = TRUE), "dgCMatrix")
+# Convert the entire sparse matrix to dense (no sampling)
+mat_dense <- as.matrix(mat_sparse)
+# Replace NA/NaN/Inf with 0
+mat_dense[!is.finite(mat_dense)] <- 0
+# Optional: set rownames (if you have meaningful row IDs in summary_table.mods)
+rownames(mat_dense) <- rownames(summary_table.mods)
+```
+Plot the heatmap
+```{r}
+# Plot heatmap with pheatmap
+heatmap <- pheatmap(mat_dense,
+         scale = "none",
+         show_rownames = FALSE,
+         labels_col = c("Col-0 1", "Col-0 2", "Col-0 3", "Col-0 4",
+                        expression(italic("hiz2-4")*1), expression(italic("hiz2-4")*2), expression(italic("hiz2-4")*3), expression(italic("hiz2-4")*4),
+                         expression(italic("hiz2-2")*1), expression(italic("hiz2-2")*2), expression(italic("hiz2-2")*3), expression(italic("hiz2-2")*4)),
+         color = colorRampPalette(c("white", "firebrick4"))(50))
+heatmap
+```
+
+

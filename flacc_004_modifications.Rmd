@@ -9,6 +9,7 @@ library(FSA)
 library(ggbeeswarm)
 library(stringr)
 library(pheatmap)
+library(Matrix)
 ```
 ```{r colour bar, echo=FALSE, fig.height=2, fig.width=13}
 palette <- c(
@@ -388,7 +389,6 @@ unique_col0 <- summary_table.mods[
   rowSums(summary_table.mods[col0_cols] > threshold) > 0,
 ]
 ```
-Is there GO enrichment in these unique gene sets?
 
 Venn diagram of the overlap
 ```{r}
@@ -418,22 +418,18 @@ summary_table.mods.means <- summary_table.mods %>%
 head(summary_table.mods.means)
 ```
 
-
-
-Plot changes
 Plot the comparison of the mean percentage modified Col-0 and hiz2-2
 ```{r}
-df2 <- summary_table_means.filtered
-df2$higher_in_x <- df2$mean_percent_modified_col0 < df2$mean_percent_modified_mutant
+df2 <- summary_table.mods.means
+df2$higher_in_x <- df2$mean_col0 < df2$mean_mutant
+df2$lower_in_x <- df2$mean_col0 > df2$mean_mutant
 
-hiz2_2_sites <- ggplot(df2, aes(x = mean_percent_modified_col0,
-               y = mean_percent_modified_mutant,
-               color = higher_in_x,
-               size = mean_Nvalid_cov)) +
-  geom_point(alpha = 0.8, show.legend = TRUE) +  
+hiz2_2_sites <- ggplot(df2, aes(x = mean_col0,
+               y = mean_mutant,
+               color = lower_in_x)) +
+  geom_point(alpha = 0.3, show.legend = TRUE) +  
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
-  scale_color_manual(values = c("FALSE" = "#CCAA22", "TRUE" = "grey50")) +
-  scale_size_continuous(range = c(1, 10)) +
+  scale_color_manual(values = c("TRUE" = "#CCAA22", "FALSE" = "grey50")) +
   theme_minimal(base_size = 10) +
   labs(
     x = "Mean % Modified (Col-0)",
@@ -461,21 +457,21 @@ ggsave(
   plot = hiz2_2_sites,
   width = 5, height = 4, units = "in" 
 )
+table(df2$higher_in_x)
+table(df2$lower_in_x)
 ```
-
 Plot the comparison of the mean percentage modified Col-0 and hiz2-4
 ```{r}
-df <- summary_table_means.filtered
-df$higher_in_x <- df$mean_percent_modified_col0 < df$mean_percent_modified_OX
+df <- summary_table.mods.means
+df$higher_in_x <- df$mean_col0 < df$mean_OX
+df$lower_in_x <- df$mean_col0 > df$mean_OX
 
-hiz2_4_sites <- ggplot(df, aes(x = mean_percent_modified_col0,
-               y = mean_percent_modified_OX,
-               color = higher_in_x,
-               size = mean_Nvalid_cov)) +
-  geom_point(alpha = 0.8, show.legend = TRUE) +  
+hiz2_4_sites <- ggplot(df, aes(x = mean_col0,
+               y = mean_OX,
+               color = higher_in_x)) +
+  geom_point(alpha = 0.3, show.legend = TRUE) +  
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
   scale_color_manual(values = c("TRUE" = "#AA4499", "FALSE" = "grey50")) +
-  scale_size_continuous(range = c(1, 10)) +
   theme_minimal(base_size = 10) +
   labs(
     x = "Mean % Modified (Col-0)",
@@ -503,110 +499,31 @@ ggsave(
   plot = hiz2_4_sites,
   width = 5, height = 4, units = "in" 
 )
+table(df$higher_in_x)
+table(df$lower_in_x)
 ```
-Count up the sites where one is higher than the other?
-hiz2-2
+Fit a linear model
 ```{r}
-count_non_na <- summary_table_means %>%
-  filter(
-    !is.na(mean_percent_modified_mutant),
-    !is.na(mean_percent_modified_col0),
-    !(mean_percent_modified_mutant == 0 & mean_percent_modified_col0 == 0)
-  ) %>%
-  nrow()
-
-count_higher <- summary_table_means %>%
-  filter(
-    !is.na(mean_percent_modified_mutant),
-    !is.na(mean_percent_modified_col0),
-    !(mean_percent_modified_mutant == 0 & mean_percent_modified_col0 == 0),
-    mean_percent_modified_mutant > mean_percent_modified_col0
-  ) %>%
-  nrow()
-
-count_lower <- summary_table_means %>%
-  filter(
-    !is.na(mean_percent_modified_mutant),
-    !is.na(mean_percent_modified_col0),
-    !(mean_percent_modified_mutant == 0 & mean_percent_modified_col0 == 0),
-    mean_percent_modified_mutant < mean_percent_modified_col0
-  ) %>%
-  nrow()
-
-count_equal <- summary_table_means %>%
-  filter(
-    !is.na(mean_percent_modified_mutant),
-    !is.na(mean_percent_modified_col0),
-    !(mean_percent_modified_mutant == 0 & mean_percent_modified_col0 == 0),
-    mean_percent_modified_mutant == mean_percent_modified_col0
-  ) %>%
-  nrow()
-count_non_na
-count_higher / count_non_na * 100
-count_lower / count_non_na * 100
-count_equal / count_non_na * 100
+library(car)
+model <- lm(mean_OX ~ mean_col0, data = summary_table.mods.means)
+summary(model)
+linearHypothesis(model, "mean_col0 = 1") 
+linearHypothesis(model, c("(Intercept) = 0", "mean_col0 = 1"))
+linearHypothesis(model, c("(Intercept) = 0"))
 ```
-hiz2-4
-```{r}
-count_non_na <- summary_table_means %>%
-  filter(
-    !is.na(mean_percent_modified_OX),
-    !is.na(mean_percent_modified_col0),
-    !(mean_percent_modified_OX == 0 & mean_percent_modified_col0 == 0)
-  ) %>%
-  nrow()
-
-count_higher <- summary_table_means %>%
-  filter(
-    !is.na(mean_percent_modified_OX),
-    !is.na(mean_percent_modified_col0),
-    !(mean_percent_modified_OX == 0 & mean_percent_modified_col0 == 0),
-    mean_percent_modified_OX > mean_percent_modified_col0
-  ) %>%
-  nrow()
-
-count_lower <- summary_table_means %>%
-  filter(
-    !is.na(mean_percent_modified_OX),
-    !is.na(mean_percent_modified_col0),
-    !(mean_percent_modified_OX == 0 & mean_percent_modified_col0 == 0),
-    mean_percent_modified_OX < mean_percent_modified_col0
-  ) %>%
-  nrow()
-
-count_equal <- summary_table_means %>%
-  filter(
-    !is.na(mean_percent_modified_OX),
-    !is.na(mean_percent_modified_col0),
-    !(mean_percent_modified_OX == 0 & mean_percent_modified_col0 == 0),
-    mean_percent_modified_OX == mean_percent_modified_col0
-  ) %>%
-  nrow()
-count_non_na
-count_higher / count_non_na * 100
-count_lower / count_non_na * 100
-count_equal / count_non_na * 100
-```
-
-
-
 Plot a heatmap
 ```{r}
 summary_table.mods[] <- lapply(summary_table.mods, as.numeric)
 # Create sparse matrix
 mat_sparse <- as(Matrix(as.matrix(summary_table.mods), sparse = TRUE), "dgCMatrix")
-
 # Convert the entire sparse matrix to dense (no sampling)
 mat_dense <- as.matrix(mat_sparse)
-
 # Replace NA/NaN/Inf with 0
 mat_dense[!is.finite(mat_dense)] <- 0
-
 # Optional: set rownames (if you have meaningful row IDs in summary_table.mods)
 rownames(mat_dense) <- rownames(summary_table.mods)
 ```
-
-
+Plot the heatmap
 ```{r}
 # Plot heatmap with pheatmap
 heatmap <- pheatmap(mat_dense,
