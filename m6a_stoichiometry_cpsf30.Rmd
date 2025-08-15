@@ -19,7 +19,7 @@ palette <- c(
   "alkbh10c"     = "#CC3311",
   "Col0"    = "#888888"
 )
-barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
+barplot(rep(1, 11), col = palette, names.arg = names(palette), yaxt = "n")
 ```
 M6anet results - sites
 ```{r}
@@ -37,10 +37,10 @@ directory <- "/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/m6Anet/d
 #Probability threshold for inclusion of site
 threshold = 0.9
 #List of col0 m6A files
-files <- c("col0_8_2", "col0_8_4",
-                "alkbh10b_1", "alkbh10b_2","alkbh10b_3","alkbh10b_4",
-                "alkbh10c_1", "alkbh10c_2","alkbh10c_3","alkbh10c_4",
-                "vir1_8_1", "vir1_8_2","vir1_8_3","vir1_8_4")
+files <- c("col0_2024_1", "col0_2024_2", "col0_2024_3",
+            "fip37_2024_1", "fip37_2024_2","fip37_2024_4",
+                "cpsf30yth_2024_1", "cpsf30yth_2024_2","cpsf30yth_2024_3",
+                "oxt6_2024_2", "oxt6_2024_3","oxt6_2024_4")
 
 #Get the files and filter for sites which pass the probability threshold
 m6a_sites_pass_list <- list()
@@ -64,73 +64,65 @@ samples_all <- m6a_sites_pass_list[[1]] %>%
     full_join(m6a_sites_pass_list[[9]], by = c("transcript_id", "transcript_position", "kmer")) %>%
     full_join(m6a_sites_pass_list[[10]], by = c("transcript_id", "transcript_position", "kmer")) %>%
     full_join(m6a_sites_pass_list[[11]], by = c("transcript_id", "transcript_position", "kmer")) %>%
-    full_join(m6a_sites_pass_list[[12]], by = c("transcript_id", "transcript_position", "kmer")) %>%
-    full_join(m6a_sites_pass_list[[13]], by = c("transcript_id", "transcript_position", "kmer")) %>%
-    full_join(m6a_sites_pass_list[[14]], by = c("transcript_id", "transcript_position", "kmer")) 
+    full_join(m6a_sites_pass_list[[12]], by = c("transcript_id", "transcript_position", "kmer")) 
 
 colnames(samples_all) <- c(
     "transcript_id", "transcript_position",
-    "n_reads.col0_8_2",   "probability_modified.col0_8_2", "kmer", "mod_ratio.col0_8_2",
-    "n_reads.col0_8_4",  "probability_modified.col0_8_4",  "mod_ratio.col0_8_4",
-    "n_reads.alkbh10b_1", "probability_modified.alkbh10b_1", "mod_ratio.alkbh10b_1",
-    "n_reads.alkbh10b_2", "probability_modified.alkbh10b_2", "mod_ratio.alkbh10b_2",
-    "n_reads.alkbh10b_3", "probability_modified.alkbh10b_3", "mod_ratio.alkbh10b_3",
-    "n_reads.alkbh10b_4", "probability_modified.alkbh10b_4", "mod_ratio.alkbh10b_4",
-    "n_reads.alkbh10c_1", "probability_modified.alkbh10c_1", "mod_ratio.alkbh10c_1",
-    "n_reads.alkbh10c_2", "probability_modified.alkbh10c_2", "mod_ratio.alkbh10c_2",
-    "n_reads.alkbh10c_3", "probability_modified.alkbh10c_3", "mod_ratio.alkbh10c_3",
-    "n_reads.alkbh10c_4", "probability_modified.alkbh10c_4", "mod_ratio.alkbh10c_4",
-    "n_reads.vir1_8_1",   "probability_modified.vir1_8_1",   "mod_ratio.vir1_8_1",
-    "n_reads.vir1_8_2",   "probability_modified.vir1_8_2",   "mod_ratio.vir1_8_2",
-    "n_reads.vir1_8_3",   "probability_modified.vir1_8_3",   "mod_ratio.vir1_8_3",
-    "n_reads.vir1_8_4",   "probability_modified.vir1_8_4",   "mod_ratio.vir1_8_4"
+    "n_reads.col0_2024_1", "probability_modified.col0_2024_1", "kmer", "mod_ratio.col0_2024_1",
+    "n_reads.col0_2024_2", "probability_modified.col0_2024_2", "mod_ratio.col0_2024_2",
+    "n_reads.col0_2024_3", "probability_modified.col0_2024_3", "mod_ratio.col0_2024_3",
+    "n_reads.fip37_2024_1", "probability_modified.fip37_2024_1", "mod_ratio.fip37_2024_1",
+    "n_reads.fip37_2024_2", "probability_modified.fip37_2024_2", "mod_ratio.fip37_2024_2",
+    "n_reads.fip37_2024_4", "probability_modified.fip37_2024_4", "mod_ratio.fip37_2024_4",
+    "n_reads.cpsf30yth_2024_1", "probability_modified.cpsf30yth_2024_1", "mod_ratio.cpsf30yth_2024_1",
+    "n_reads.cpsf30yth_2024_2", "probability_modified.cpsf30yth_2024_2", "mod_ratio.cpsf30yth_2024_2",
+    "n_reads.cpsf30yth_2024_3", "probability_modified.cpsf30yth_2024_3", "mod_ratio.cpsf30yth_2024_3",
+    "n_reads.oxt6_2024_2", "probability_modified.oxt6_2024_2", "mod_ratio.oxt6_2024_2",
+    "n_reads.oxt6_2024_3", "probability_modified.oxt6_2024_3", "mod_ratio.oxt6_2024_3",
+    "n_reads.oxt6_2024_4", "probability_modified.oxt6_2024_4", "mod_ratio.oxt6_2024_4"
 )
 ```
 Sites which have predicted m6A in col0
 ```{r}
-sites <- samples_all[!is.na(samples_all$mod_ratio.col0_8_2) | !is.na(samples_all$mod_ratio.col0_8_4) | 
-                    !is.na(samples_all$mod_ratio.alkbh10b_1) | !is.na(samples_all$mod_ratio.alkbh10b_2) |
-                    !is.na(samples_all$mod_ratio.alkbh10b_3) | !is.na(samples_all$mod_ratio.alkbh10b_4),]
+sites <- samples_all[!is.na(samples_all$mod_ratio.col0_2024_1) | !is.na(samples_all$mod_ratio.col0_2024_2) | !is.na(samples_all$mod_ratio.col0_2024_3),]
 ```
 
 Subset the columns
 ```{r}
-col0   <- dplyr::select(sites, 
-                          mod_ratio.col0_8_2, 
-                          mod_ratio.col0_8_4)
+col0 <- dplyr::select(sites, 
+                      mod_ratio.col0_2024_1, 
+                      mod_ratio.col0_2024_2, 
+                      mod_ratio.col0_2024_3)
 
-alkbh10b <- dplyr::select(sites, 
-                          mod_ratio.alkbh10b_1, 
-                          mod_ratio.alkbh10b_2, 
-                          mod_ratio.alkbh10b_3, 
-                          mod_ratio.alkbh10b_4)
+fip37 <- dplyr::select(sites, 
+                       mod_ratio.fip37_2024_1, 
+                       mod_ratio.fip37_2024_2, 
+                       mod_ratio.fip37_2024_4)
 
-alkbh10c <- dplyr::select(sites, 
-                          mod_ratio.alkbh10c_1, 
-                          mod_ratio.alkbh10c_2, 
-                          mod_ratio.alkbh10c_3, 
-                          mod_ratio.alkbh10c_4)
+cpsf30yth <- dplyr::select(sites, 
+                           mod_ratio.cpsf30yth_2024_1, 
+                           mod_ratio.cpsf30yth_2024_2, 
+                           mod_ratio.cpsf30yth_2024_3)
 
-vir1   <- dplyr::select(sites, 
-                          mod_ratio.vir1_8_1, 
-                          mod_ratio.vir1_8_2, 
-                          mod_ratio.vir1_8_3, 
-                          mod_ratio.vir1_8_4)
+oxt6 <- dplyr::select(sites, 
+                      mod_ratio.oxt6_2024_2, 
+                      mod_ratio.oxt6_2024_3, 
+                      mod_ratio.oxt6_2024_4)
 ```
 Reshape the data frame
 ```{r}
 df <- rbind(
     data.frame(genotype="col0", reshape2::melt(col0)),
-    data.frame(genotype="alkbh10b", reshape2::melt(alkbh10b)),
-    data.frame(genotype="alkbh10c", reshape2::melt(alkbh10c)),
-    data.frame(genotype="vir1", reshape2::melt(vir1))
+    data.frame(genotype="fip37", reshape2::melt(fip37)),
+    data.frame(genotype="cpsf30yth", reshape2::melt(cpsf30yth)),
+    data.frame(genotype="oxt6", reshape2::melt(oxt6))
 )
 ```
 ```{r}
 custom_colors <- c(
-    "vir1" = "#009E73",  
-    "alkbh10b" = "#0077BB",  
-    "alkbh10c" = "#CC3311", 
+    "oxt6" = "#AA4499",  
+    "fip37" = "#0077BB",  
+    "cpsf30yth" = "#DD3377", 
     "col0" = "black"   
 )
 
@@ -172,12 +164,12 @@ m6a_plot
 ```
 ```{r}
 ggsave(
-  filename = "../../Figures/figure_7/alkbh10_m6anet.pdf",
+  filename = "../../Figures/figure_8/cpsf30_m6anet.pdf",
   plot = m6a_plot,
   width = 5, height = 4, units = "in"
 )
 ggsave(
-  filename = "../../Figures/figure_7/alkbh10_m6anet.png",
+  filename = "../../Figures/figure_8/cpsf30_m6anet.png",
   plot = m6a_plot,
   width = 5, height = 4, units = "in" 
 )

@@ -45,7 +45,7 @@ files <- c("col0_8_2", "col0_8_4",
 #Get the files and filter for sites which pass the probability threshold
 m6a_sites_pass_list <- list()
 for (i in 1:length(files)){
-    file_name <- paste(directory,files[i],"data.site_proba.csv", sep ="/")
+    file_name <- paste(directory,col0_files[i],"data.site_proba.csv", sep ="/")
     m6a_sites <- read.csv(file_name)
     m6a_sites_pass_list[[i]] <- m6a_sites[m6a_sites$probability_modified > threshold,]
 }
