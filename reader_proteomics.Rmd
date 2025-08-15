@@ -267,7 +267,7 @@ plot_alba <- ggplot(
   )
 ) +
   geom_point(shape = 21, colour = "white") +
-  geom_text_repel(size = 3, max.overlaps = Inf, hjust = 1.2) +
+  geom_text_repel(size = 4, max.overlaps = Inf, hjust = 1.2) +
   scale_fill_manual(values = category_colors) +
   theme_classic(base_size = 15) +
   theme(legend.position = "none") +
