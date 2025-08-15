@@ -1,0 +1,331 @@
+---
+title: "m6A Stoichiometry"
+---
+Colour palette
+```{r colour bar, echo=FALSE, fig.height=2, fig.width=13}
+palette <- c(
+ # Writers
+  "MTA"     = "#004488",
+  "VIR"  = "#009988",
+  "FIP37"   = "#0077BB",
+  "hiz2-4" = "#AA4499",
+  "hiz2-2"    = "#CCAA22",
+  "HAKAI" = "#556B2F",
+  #Readers
+  "ECT"     = "#EE7733",
+  "CPSF30"  = "#DD3377",
+  #Other
+  "U2B"     = "#CC3311",
+  "alkbh10c"     = "#CC3311",
+  "Col0"    = "#888888"
+)
+barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
+```
+M6anet results - sites
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(reshape2)
+library(tidyr)
+library(data.table)
+```
+
+```{r}
+#Define the the location of the input files
+directory <- "/Volumes/cluster/ggs_lab/cmetheringham001/Readers_Writers/m6Anet/data/m6anet"
+#Probability threshold for inclusion of site
+threshold = 0.9
+#List of col0 m6A files
+files <- c("col0_8_2", "col0_8_4",
+                "alkbh10b_1", "alkbh10b_2","alkbh10b_3","alkbh10b_4",
+                "alkbh10c_1", "alkbh10c_2","alkbh10c_3","alkbh10c_4",
+                "vir1_8_1", "vir1_8_2","vir1_8_3","vir1_8_4")
+
+#Get the files and filter for sites which pass the probability threshold
+m6a_sites_pass_list <- list()
+for (i in 1:length(files)){
+    file_name <- paste(directory,col0_files[i],"data.site_proba.csv", sep ="/")
+    m6a_sites <- read.csv(file_name)
+    m6a_sites_pass_list[[i]] <- m6a_sites[m6a_sites$probability_modified > threshold,]
+}
+```
+
+
+```{r}
+samples_all <- m6a_sites_pass_list[[1]] %>%
+    full_join(m6a_sites_pass_list[[2]], by = c("transcript_id", "transcript_position", "kmer")) %>%
+    full_join(m6a_sites_pass_list[[3]], by = c("transcript_id", "transcript_position", "kmer")) %>%
+    full_join(m6a_sites_pass_list[[4]], by = c("transcript_id", "transcript_position", "kmer")) %>%
+    full_join(m6a_sites_pass_list[[5]], by = c("transcript_id", "transcript_position", "kmer")) %>%
+    full_join(m6a_sites_pass_list[[6]], by = c("transcript_id", "transcript_position", "kmer")) %>%
+    full_join(m6a_sites_pass_list[[7]], by = c("transcript_id", "transcript_position", "kmer")) %>%
+    full_join(m6a_sites_pass_list[[8]], by = c("transcript_id", "transcript_position", "kmer")) %>%
+    full_join(m6a_sites_pass_list[[9]], by = c("transcript_id", "transcript_position", "kmer")) %>%
+    full_join(m6a_sites_pass_list[[10]], by = c("transcript_id", "transcript_position", "kmer")) %>%
+    full_join(m6a_sites_pass_list[[11]], by = c("transcript_id", "transcript_position", "kmer")) %>%
+    full_join(m6a_sites_pass_list[[12]], by = c("transcript_id", "transcript_position", "kmer")) %>%
+    full_join(m6a_sites_pass_list[[13]], by = c("transcript_id", "transcript_position", "kmer")) %>%
+    full_join(m6a_sites_pass_list[[14]], by = c("transcript_id", "transcript_position", "kmer")) 
+
+colnames(samples_all) <- c(
+    "transcript_id", "transcript_position",
+    "n_reads.col0_8_2",   "probability_modified.col0_8_2", "kmer", "mod_ratio.col0_8_2",
+    "n_reads.col0_8_4",  "probability_modified.col0_8_4",  "mod_ratio.col0_8_4",
+    "n_reads.alkbh10b_1", "probability_modified.alkbh10b_1", "mod_ratio.alkbh10b_1",
+    "n_reads.alkbh10b_2", "probability_modified.alkbh10b_2", "mod_ratio.alkbh10b_2",
+    "n_reads.alkbh10b_3", "probability_modified.alkbh10b_3", "mod_ratio.alkbh10b_3",
+    "n_reads.alkbh10b_4", "probability_modified.alkbh10b_4", "mod_ratio.alkbh10b_4",
+    "n_reads.alkbh10c_1", "probability_modified.alkbh10c_1", "mod_ratio.alkbh10c_1",
+    "n_reads.alkbh10c_2", "probability_modified.alkbh10c_2", "mod_ratio.alkbh10c_2",
+    "n_reads.alkbh10c_3", "probability_modified.alkbh10c_3", "mod_ratio.alkbh10c_3",
+    "n_reads.alkbh10c_4", "probability_modified.alkbh10c_4", "mod_ratio.alkbh10c_4",
+    "n_reads.vir1_8_1",   "probability_modified.vir1_8_1",   "mod_ratio.vir1_8_1",
+    "n_reads.vir1_8_2",   "probability_modified.vir1_8_2",   "mod_ratio.vir1_8_2",
+    "n_reads.vir1_8_3",   "probability_modified.vir1_8_3",   "mod_ratio.vir1_8_3",
+    "n_reads.vir1_8_4",   "probability_modified.vir1_8_4",   "mod_ratio.vir1_8_4"
+)
+```
+Sites which have predicted m6A in col0
+```{r}
+sites <- samples_all[!is.na(samples_all$mod_ratio.col0_8_2) | !is.na(samples_all$mod_ratio.col0_8_4) | 
+                    !is.na(samples_all$mod_ratio.alkbh10b_1) | !is.na(samples_all$mod_ratio.alkbh10b_2) |
+                    !is.na(samples_all$mod_ratio.alkbh10b_3) | !is.na(samples_all$mod_ratio.alkbh10b_4),]
+```
+
+Subset the columns
+```{r}
+col0   <- dplyr::select(sites, 
+                          mod_ratio.col0_8_2, 
+                          mod_ratio.col0_8_4)
+
+alkbh10b <- dplyr::select(sites, 
+                          mod_ratio.alkbh10b_1, 
+                          mod_ratio.alkbh10b_2, 
+                          mod_ratio.alkbh10b_3, 
+                          mod_ratio.alkbh10b_4)
+
+alkbh10c <- dplyr::select(sites, 
+                          mod_ratio.alkbh10c_1, 
+                          mod_ratio.alkbh10c_2, 
+                          mod_ratio.alkbh10c_3, 
+                          mod_ratio.alkbh10c_4)
+
+vir1   <- dplyr::select(sites, 
+                          mod_ratio.vir1_8_1, 
+                          mod_ratio.vir1_8_2, 
+                          mod_ratio.vir1_8_3, 
+                          mod_ratio.vir1_8_4)
+```
+Reshape the data frame
+```{r}
+df <- rbind(
+    data.frame(genotype="col0", reshape2::melt(col0)),
+    data.frame(genotype="alkbh10b", reshape2::melt(alkbh10b)),
+    data.frame(genotype="alkbh10c", reshape2::melt(alkbh10c)),
+    data.frame(genotype="vir1", reshape2::melt(vir1))
+)
+```
+```{r}
+custom_colors <- c(
+    "vir1" = "#009E73",  
+    "alkbh10b" = "#0077BB",  
+    "alkbh10c" = "#CC3311", 
+    "col0" = "black"   
+)
+
+m6a_plot <- ggplot(df, aes(x = value, colour = genotype)) +
+    geom_line(stat = "density", linewidth = 0.3, aes(group = variable, alpha = 0.01)) +
+    geom_density(linetype = "longdash", linewidth = 1, aes(group = genotype)) +
+    theme_classic(base_size = 12) +
+    scale_x_continuous(expand = expansion(mult = c(0, 0.05)), limits = c(0, NA)) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.05)), limits = c(0, NA)) +
+    labs(colour = "Genotype", fill = "Condition") +
+    scale_color_manual(
+        values = custom_colors,
+        labels = c(
+            "col0" = "Col-0",
+            "vir1" = expression(italic("vir-1")),
+            "alkbh10b" = expression(italic("alkbh10b-1")),
+            "alkbh10c" = expression(italic("alkbh10c-1"))
+        )
+    ) +
+    labs(
+        x = "Predicted Modification Ratio",
+        y = "Density"
+    ) +
+    guides(
+        alpha = "none", 
+        colour = guide_legend(
+            override.aes = list(linetype = "solid"),
+            title.position = "top",
+            nrow = 1
+        )
+    ) +
+    theme(
+        legend.position = "bottom",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 11)
+    )
+
+m6a_plot
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_7/alkbh10_m6anet.pdf",
+  plot = m6a_plot,
+  width = 5, height = 4, units = "in"
+)
+ggsave(
+  filename = "../../Figures/figure_7/alkbh10_m6anet.png",
+  plot = m6a_plot,
+  width = 5, height = 4, units = "in" 
+)
+```
+```{r}
+# Remove non-finite values
+df_clean <- df2 %>%
+  filter(is.finite(value))
+
+# Precompute frequency for each group
+df_freq <- df_clean %>%
+  group_by(geno_temp, variable, genotype, temperature) %>%
+  mutate(bin = cut(value, breaks = seq(min(value, na.rm = TRUE), 
+                                       max(value, na.rm = TRUE), 
+                                       length.out = 80))) %>%
+  count(bin, .groups = "drop") %>%
+  mutate(
+    bin_start = as.numeric(str_extract(as.character(bin), "(?<=\\().+?(?=,)")), # Extract lower bound
+    bin_end = as.numeric(str_extract(as.character(bin), "(?<=,).+?(?=\\])")),   # Extract upper bound
+    bin_midpoint = (bin_start + bin_end) / 2                                    # Calculate midpoint
+  ) %>%
+  group_by(geno_temp) %>%
+  mutate(freq = n / sum(n)) %>%
+  ungroup()
+
+# Plot frequency as lines
+m6a_plot_freq <- ggplot(df_freq, aes(x = bin_midpoint, y = n, colour = geno_temp)) +
+  geom_line(linewidth = 0.3, aes(group = variable, alpha = 0.01)) +
+  geom_line(linewidth = 1, linetype = "longdash", aes(group = geno_temp)) +
+  theme_classic(base_size = 12) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(colour = "Genotype", fill = "Condition") +
+  scale_color_manual(values = custom_colors) +
+  labs(x = "Predicted Modification Ratio",
+       y = "Frequency") +
+  guides(
+    alpha = "none",
+    colour = guide_legend(override.aes = list(linetype = "solid"))
+  )
+
+m6a_plot_freq
+```
+
+
+Sites which still have an predicted m6A site in vir1
+```{r}
+col0_low <- dplyr::select(vir1.sites, mod_ratio.col0_low_1, mod_ratio.col0_low_2, mod_ratio.col0_low_3, mod_ratio.col0_low_4)
+col0_high <- dplyr::select(vir1.sites, mod_ratio.col0_high_1, mod_ratio.col0_high_2, mod_ratio.col0_high_3, mod_ratio.col0_high_4)
+vir1_low <- dplyr::select(vir1.sites,  mod_ratio.vir1_low_2, mod_ratio.vir1_low_3, mod_ratio.vir1_low_4)
+vir1_high <- dplyr::select(vir1.sites, mod_ratio.vir1_high_1, mod_ratio.vir1_high_2, mod_ratio.vir1_high_3, mod_ratio.vir1_high_4)
+```
+Reshape the data frame
+```{r}
+df2 <- rbind(
+    data.frame(genotype="col0", temperature=17,melt(col0_low)),
+    data.frame(genotype="col0", temperature=27,melt(col0_high)),
+    data.frame(genotype="vir1", temperature=17,melt(vir1_low)),
+    data.frame(genotype="vir1", temperature=27,melt(vir1_high))
+)
+```
+```{r}
+# Define custom colors for each combination of genotype and temperature
+custom_colors <- c(
+    "col0_17" = "#009E73",  
+    "col0_27" = "#E69F00",  
+    "vir1_17" = "#0072B2", 
+    "vir1_27" = "#D55E00"   
+)
+# Create a new variable for interaction of genotype and temperature
+df2 <- df2 %>%
+    mutate(geno_temp = interaction(genotype, temperature, sep = "_"))
+
+m6a_plot_vir1 <- ggplot(df2, aes(x = value, colour = geno_temp))+
+    geom_line(stat= "density", linewidth = 0.3, aes(group = variable, alpha = 0.01))+
+    geom_density(linetype = "longdash", linewidth = 1, aes(group = paste(genotype, temperature)))+
+    theme_classic(base_size=12)+
+    scale_x_continuous(expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0)) +
+    labs(colour = "Genotype", fill = "Condition")+
+    scale_color_manual(values = custom_colors)+
+    labs(x = "Predicted Modification Ratio",
+       y = "Density")+
+    guides(
+        alpha = "none", 
+        colour = guide_legend(override.aes = list(linetype = "solid"))
+    )
+m6a_plot_vir1
+```
+```{r}
+setwd("/Users/CMetheringham001/Documents/m6A_Autoimmunity/Figures/Figure4")
+pdf(file = "m6a_plot_mod_ratio_vir_sites.pdf",   # The directory you want to save the file in
+    width = 6, # The width of the plot in inches
+    height = 4)
+m6a_plot_vir1
+dev.off()
+```
+
+
+Plot Yanocomp results 
+
+```{r}
+bed_header <- c("chrom","start","end","gene_id:kmer","score","strand",
+                "modLogFC","Pval","FDR","Mod", "G",
+                "HomG", "PairwisePval", "PairwiseFDR","UnModDisMean","UnModDisSD",
+                "ModDisMean", "ModDisSD", "KS")
+
+yanocomp_results_high <- read.delim("~/Documents/NovDem/Yanocomp/vir1_high_vs_col0_high.bed", header=FALSE)
+yanocomp_results_low <- read.delim("~/Documents/NovDem/Yanocomp/vir1_low_vs_col0_low.bed", header=FALSE)
+```
+
+
+```{r}
+colnames(yanocomp_results_high) <- colnames(yanocomp_results_low) <- bed_header
+```
+
+Filter the tables
+```{r}
+yanocomp_results_high <- yanocomp_results_high %>% filter(FDR < 0.05)
+yanocomp_results_low <- yanocomp_results_low %>% filter(FDR < 0.05)
+```
+
+
+```{r}
+yanocomp_results_high <- yanocomp_results_high %>% 
+  separate(Mod, into = c("ModV", "ModC"), sep = ",", convert = TRUE)
+yanocomp_results_low <- yanocomp_results_low %>% 
+  separate(Mod, into = c("ModV", "ModC"), sep = ",", convert = TRUE)
+```
+```{r}
+yanocomp_plot <- ggplot()+
+    geom_density(data = yanocomp_results_high, aes(x = ModV), colour = "#D55E00")+
+    geom_density(data = yanocomp_results_low, aes(x = ModV), colour = "#0072B2")+
+    geom_density(data = yanocomp_results_high, aes(x = ModC), colour = "#E69F00")+
+    geom_density(data = yanocomp_results_low, aes(x = ModC), colour = "#009E73")+
+    theme_classic(base_size=12)+
+    labs(x = "Predicted Modification Ratio",
+       y = "Density")
+    
+yanocomp_plot
+```
+```{r}
+setwd("/Users/CMetheringham001/Documents/m6A_Autoimmunity/Figures/Figure5")
+pdf(file = "yanocomp.pdf",   # The directory you want to save the file in
+    width = 8, # The width of the plot in inches
+    height = 6)
+yanocomp_plot
+dev.off()
+```
+
+Diff_err plot
