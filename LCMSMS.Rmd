@@ -191,3 +191,87 @@ summary(anova_result)
 # t.test
 t.test(efs_lcmsms$m6A_ratio[efs_lcmsms$geno=="Ler"], efs_lcmsms$m6A_ratio[efs_lcmsms$geno=="efs-1"], conf.level = 0.95)
 ```
+ALKBH10C
+```{r}
+alkbh10_geno <- c("Col-0", "Col-0", "Col-0", "Col-0",
+          "vir-1","vir-1","vir-1","vir-1",
+          "alkbh10c-1", "alkbh10c-1", "alkbh10c-1", "alkbh10c-1")
+alkbh10_ratio <- c(550/69383, 958/134929, 1531/208006,1201/156767,
+          51.21/179070, 29.69/127165, 43.02/125246, 43.86/135221,
+          845/119346, 915/142564, 1126/149909, 1001/135858)
+
+alkbh10_table <- data.table(geno=alkbh10_geno, m6A_ratio=alkbh10_ratio)
+```
+```{r}
+custom_colors <- c(
+    "Col-0" = "black",
+    "alkbh10c-1" = "#CC3311",
+    "vir-1" = "#009988"
+)
+```
+
+```{r}
+alk_dot_And_box <- ggplot(data = alkbh10_table, aes(y = m6A_ratio, x = geno, colour = geno, shape = geno)) +
+  geom_boxplot(colour = "darkgrey") +
+  geom_beeswarm(size = 3, cex = 2) +
+  theme_classic(base_size = 12) +
+  scale_x_discrete(
+    labels = c(expression(italic("alkbh10c-1")), "Col-0", expression(italic("vir-1")))
+  ) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.05)), limits = c(0, NA))+
+  labs(
+    title = "",
+    x = "Condition",
+    y = "m6A/A ratio",
+    colour = "Genotype",
+    shape = "Genotype"
+  ) +
+  scale_color_manual(
+    values = custom_colors,
+    labels = c(
+      "Col-0" = "Col-0",
+      "vir-1" = expression(italic("vir-1")),
+      "alkbh10c-1" = expression(italic("alkbh10c-1"))
+    )
+  ) +
+  scale_shape_manual(
+    values = c("Col-0" = 16, "vir-1" = 17, "alkbh10c-1" = 18),
+    labels = c(
+      "Col-0" = "Col-0",
+      "vir-1" = expression(italic("vir-1")),
+      "alkbh10c-1" = expression(italic("alkbh10c-1"))
+    )
+  ) +
+  guides(
+    colour = guide_legend(title = "Genotype"),
+    shape = guide_legend(title = "Genotype")
+  )
+
+alk_dot_And_box
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_7/alkbh10_lcms.pdf",
+  plot = alk_dot_And_box,
+  width = 5, height = 4, units = "in",
+    bg = "transparent"
+)
+ggsave(
+  filename = "../../Figures/figure_7/alkbh10_lcms.png",
+  plot = alk_dot_And_box,
+  width = 5, height = 4, units = "in" 
+)
+```
+Calculate stats
+```{r}
+# Convert temperature and genotype to factors
+alkbh10_table$geno <- as.factor(alkbh10_table$geno)
+
+# ANOVA
+anova_result <- aov(m6A_ratio ~ geno, data = alkbh10_table)
+summary(anova_result)
+
+# t.test
+t.test(alkbh10_table$m6A_ratio[alkbh10_table$geno=="Col-0"], alkbh10_table$m6A_ratio[alkbh10_table$geno=="alkbh10c-1"], conf.level = 0.95)
+t.test(alkbh10_table$m6A_ratio[alkbh10_table$geno=="Col-0"], alkbh10_table$m6A_ratio[alkbh10_table$geno=="vir-1"], conf.level = 0.95)
+```
