@@ -288,3 +288,59 @@ ggsave(
   width = 6, height = 5, units = "in" 
 )
 ```
+
+Highlight the ALBH10 proteins
+```{r}
+alba_proteins <- data.frame(
+  protein = c("AT4G02940", "AT1G14710"),
+  name = c("ALKBH10B", "ALKBH10C"),
+  stringsAsFactors = FALSE
+)
+
+ect_vs_col0 <- merge(ect_vs_col0.raw, alba_proteins, by = "protein", all.x = TRUE)
+
+# Set categories
+ect_vs_col0$category <- "other"
+ect_vs_col0$category[ect_vs_col0$name == "ALKBH10B"] <- "ALKBH10B"
+ect_vs_col0$category[ect_vs_col0$name == "ALKBH10C"] <- "ALKBH10C"
+ect_vs_col0$category[ect_vs_col0$protein == "AT3G13460"] <- "ECT2"
+
+# Define separate colours
+category_colors <- c(
+  "ALKBH10C" = "#CC3311",  # red for 10B
+  "ALKBH10B" = "#0077BB",  # blue for 10C
+  "ECT2"     = "#EE7733",  # orange for ECT2
+  "other"    = "#888888"   # grey for everything else
+)
+
+plot_alkbh10 <- ggplot(
+  data = ect_vs_col0[ect_vs_col0$ECT >= 3, ],
+  aes(
+    y = -log10(pval),
+    x = median_logFC,
+    label = ifelse(category %in% c("ALKBH10B", "ALKBH10C", "ECT2"), name, ""), 
+    fill = category,
+    size = median_av_exprs
+  )
+) +
+  geom_point(shape = 21, colour = "white") +
+  geom_text_repel(size = 4, max.overlaps = Inf, hjust = 1.2) +
+  scale_fill_manual(values = category_colors) +
+  theme_classic(base_size = 15) +
+  theme(legend.position = "none") +
+  xlab("Median log2 Fold Change") +
+  ylab("-log10 p value")
+
+```
+```{r}
+ggsave(
+  filename = "../../Figures/figure_7/ect234_alkbh10_proteomics.pdf",
+  plot = plot_alkbh10,
+  width = 6, height = 5, units = "in" 
+)
+ggsave(
+  filename = "../../Figures/figure_7/ect234_alkbh10_proteomics.png",
+  plot = plot_alkbh10,
+  width = 6, height = 5, units = "in" 
+)
+```
