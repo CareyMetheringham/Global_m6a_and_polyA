@@ -10,6 +10,8 @@ library(ggbeeswarm)
 library(stringr)
 library(pheatmap)
 library(Matrix)
+library(GenomicFeatures)
+library(data.table)
 ```
 ```{r colour bar, echo=FALSE, fig.height=2, fig.width=13}
 palette <- c(
@@ -31,9 +33,9 @@ barplot(rep(1, 10), col = palette, names.arg = names(palette), yaxt = "n")
 ```
 Load genome and annotation
 ```{r}
-At.genome <- Rsamtools::FaFile("/Volumes/cluster/ggs_lab/cmetheringham001/Shared_Ref/TAIR10_chr_all.fas")
+At.genome <- Rsamtools::FaFile("../../../Ref_data/TAIR10_chr_all.fas")
 # Load TxDb
-txdb <- makeTxDbFromGFF("/Volumes/cluster/ggs_lab/cmetheringham001/Shared_Ref/Araport11_GFF3_genes_transposons.201606.no_chr.gtf")
+txdb <- makeTxDbFromGFF("../../../Ref_data/Araport11_GFF3_genes_transposons.201606.no_chr.gtf")
 ```
 Plot the proportion of A in DRACH motifs
 ```{r}
@@ -307,13 +309,12 @@ Make a summary table
 ```{r}
 summarise_table_list <- function(df_list) {
   key_cols <- c("chrom", "start", "end", "mod_code_motif", "strand")
-  
   processed_list <- lapply(names(df_list), function(name) {
-    df <- df_list[[name]]
-    
+    df <- as.data.table(df_list[[name]])
+    print(is.data.table(df))
+    print(head(df))
     # Trim the table name
     short_name <- str_remove(name, "\\.filtered.*")  # removes ".filtered.annotated" etc
-    
     df %>%
       dplyr::select(all_of(c(key_cols, "Nvalid_cov", "percent_modified"))) %>%
       rename(
@@ -321,12 +322,11 @@ summarise_table_list <- function(df_list) {
         !!paste0(short_name, ".percent_modified") := percent_modified
       )
   })
-  
   # Merge all tables by the key columns
   merged_df <- Reduce(function(x, y) full_join(x, y, by = key_cols), processed_list)
-  
   return(merged_df)
 }
+#Run function
 summary_table <- summarise_table_list(bed_list)
 head(summary_table)
 ```
