@@ -137,9 +137,9 @@ m6a_plot <- ggplot(df, aes(x = value, colour = genotype)) +
         values = custom_colors,
         labels = c(
             "col0" = "Col-0",
-            "vir1" = expression(italic("vir-1")),
-            "alkbh10b" = expression(italic("alkbh10b-1")),
-            "alkbh10c" = expression(italic("alkbh10c-1"))
+            "fip37" = expression(italic("fip37-4")),
+            "oxt6" = expression(italic("cpsf30-1")),
+            "cpsf30yth" = expression(italic("cpsf30-delta-YTH"))
         )
     ) +
     labs(
